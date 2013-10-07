@@ -252,7 +252,7 @@ class Board(object):
                 try:
                     arr = Square(amz_target.x + (arr_dir[0] * arr_dist),
                                  amz_target.y + (arr_dir[1] * arr_dist))
-                    if b[arr.x][arr.y] != EMPTY:
+                    if b[arr.x][arr.y] != EMPTY and arr != amz:
                         arr = None
                 except:
                     arr = None

@@ -2,6 +2,24 @@ import unittest
 
 from board import Board
 
+"""
+TODO: test for enumeration - should be 2 moves left
+(there was a bug that enumerated none left):
+black_amazons='a10, c9, a7, a4'
+white_amazons='a5, c10, c8, i2'
+arrows='
+b10, d10, e10, f10, j10,
+a9, b9, d9, e9, h9,
+b8, d8, e8, h8,
+b7, c7, d7,
+a6, b6, d6, h6, i6,
+b5, c5, g5, j5,
+b4, c4, f4, j4,
+b3,
+a2, b2,
+a1, b1'
+"""
+
 class BoardTest(unittest.TestCase):
 
     @classmethod

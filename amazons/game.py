@@ -39,6 +39,4 @@ class Game(object):
     def __str__(self):
         b = self.board
         game_status_str = str(b)
-        if (self.winner != None):
-            game_status_str += self.winner.capitalize() + ' wins!'
         return game_status_str
