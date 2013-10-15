@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 
-from simple_runner import SimpleRunner
+from pygame_runner import PygameRunner
 
-SimpleRunner().run()
+PygameRunner().run()

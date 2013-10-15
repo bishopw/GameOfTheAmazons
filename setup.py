@@ -12,5 +12,6 @@ setup(
     description='An implementation of the Game of the Amazons.',
     long_description=open('README.txt').read(),
     install_requires=[
+        "py27-game >= 1.9.1_6"
     ]
 )
