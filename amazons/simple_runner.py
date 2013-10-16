@@ -220,3 +220,6 @@ class SimpleRunner(object):
         print 'with Joseph Sheedy at EMC Isilon Storage Division, Q4 2013'
         print ''
         self.do_title_menu()
+
+if __name__ == "__main__":
+	SimpleRunner().run()
