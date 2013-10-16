@@ -4,6 +4,9 @@ from move import Move
 from board import Board
 from game import Game
 from invalid_move_error import InvalidMoveError
+from player import Player
+from board import WHITE,BLACK
+from player import ResignGame,QuitGame
 
 TITLE_ASCII = """                        ,---.
                         |  _.,---.,-.-.,---.
@@ -39,14 +42,14 @@ class SimpleRunner(object):
             'arrows': arrows,
             'to_move': to_move
         }
-        self.white_player = 'Local Human'
-        self.black_player = 'Local Human'
+        self.white_player = Player(WHITE)
+        self.black_player = Player(BLACK)
         self.clock = 'No Clock'
 
     def do_title_menu(self):
         print 'Please choose from the following options:'
-        print '1) Set Player for White   (Current: ' + self.white_player + ')'
-        print '2) Set Player for Black   (Current: ' + self.black_player + ')'
+        print '1) Set Player for White   (Current: ' + str(self.white_player) + ')'
+        print '2) Set Player for Black   (Current: ' + str(self.black_player) + ')'
         print '3) Set Game Clock         (Current: ' + self.clock + ')'
         print '4) Reconfigure Board'
         print '5) Start Game'
@@ -74,7 +77,7 @@ class SimpleRunner(object):
     def do_set_player(self, player):
         player_str = 'White' if player == 0 else 'Black'
         current = self.white_player if player == 0 else self.black_player
-        print 'Please choose a player for ' + player_str + ' (Current: ' + current + '):'
+        print 'Please choose a player for ' + player_str + ' (Current: ' + str(current) + '):'
         print '1) Local Human'
         print '2) Remote Human (via Network)'
         print '3) Computer AI'
@@ -128,40 +131,25 @@ class SimpleRunner(object):
         s = self.game_settings
         self.game = Game(s['width'], s['height'], s['white_amazons'],
                          s['black_amazons'], s['arrows'], s['to_move'])
-        self.do_play_game()
+        
+        while not self.game.is_over:
+        	self.do_play_game()
 
     def do_play_game(self, print_board = True):
         g = self.game
         b = g.board
         curr_player = self.white_player if b.to_move == 'white' else self.black_player
-        curr_player_name = b.to_move.capitalize()
-        if curr_player == 'Local Human':
+        curr_player_name = str(b.to_move).capitalize()
+        if str(curr_player) == 'Local Human':
             if print_board:
                 print g
                 print ''
-            ex = str(b.get_valid_moves()[0]).replace(',', '')
-            print curr_player_name + ", please enter a move, e.g. '" + ex + "',"
-            print "or enter 'r' to resign, or 'q' to quit."
-            print ''
-            i = raw_input('> ').strip().lower()
-            print ''
-            if i in ['q', 'quit']:
-                self.do_confirm_quit(self.do_play_game)
-            elif i in ['r', 'resign']:
+            try:
+                g.move(curr_player.next_move_txt(g))
+            except QuitGame:
+            	self.do_confirm_quit(self.do_play_game)
+            except ResignGame:
                 self.do_confirm_resign()
-            else:
-                try:
-                    i = Move(i)
-                    g.move(i)
-                    if (g.is_over):
-                        self.do_finish_game()
-                    else:
-                        self.do_play_game()
-                except Exception, e:
-                    print "Sorry, that doesn't seem to be a valid move."
-                    print str(e) + '.'
-                    print ''
-                    self.do_play_game(print_board = False)
 
         elif curr_player == 'Computer AI':
             print curr_player_name + ' is thinking...'
@@ -222,4 +210,4 @@ class SimpleRunner(object):
         self.do_title_menu()
 
 if __name__ == "__main__":
-	SimpleRunner().run()
+    SimpleRunner().run()
