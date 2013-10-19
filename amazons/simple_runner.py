@@ -1,10 +1,8 @@
-from random import randint
-
 from move import Move
 from board import Board
 from game import Game
 from invalid_move_error import InvalidMoveError
-from player import Player
+from player import Player,AIPlayer
 from board import WHITE,BLACK
 from player import ResignGame,QuitGame
 
@@ -42,8 +40,8 @@ class SimpleRunner(object):
             'arrows': arrows,
             'to_move': to_move
         }
-        self.white_player = Player(WHITE)
-        self.black_player = Player(BLACK)
+        self.white_player = Player(WHITE, text_ui=True)
+        self.black_player = Player(BLACK, text_ui=True)
         self.clock = 'No Clock'
 
     def do_title_menu(self):
@@ -86,9 +84,9 @@ class SimpleRunner(object):
         print ''
         if i == '1':
             if player == 0:
-                self.white_player = 'Local Human'
+                self.white_player = Player(WHITE, text_ui=True)
             else:
-                self.black_player = 'Local Human'
+                self.black_player = Player(BLACK, text_ui=True)
             self.do_title_menu()
         elif i == '2':
             print "Sorry, that's not implemented yet."
@@ -96,9 +94,9 @@ class SimpleRunner(object):
             self.do_set_player(player)
         elif i == '3':
             if player == 0:
-                self.white_player = 'Computer AI'
+                self.white_player = AIPlayer(WHITE)
             else:
-                self.black_player = 'Computer AI'
+                self.black_player = AIPlayer(BLACK)
             self.do_title_menu()
         else:
             print "Sorry, I don't know how to do that."
@@ -133,49 +131,21 @@ class SimpleRunner(object):
                          s['black_amazons'], s['arrows'], s['to_move'])
         
         while not self.game.is_over:
-        	self.do_play_game()
+            self.do_play_game()
 
     def do_play_game(self, print_board = True):
         g = self.game
         b = g.board
         curr_player = self.white_player if b.to_move == 'white' else self.black_player
-        curr_player_name = str(b.to_move).capitalize()
-        if str(curr_player) == 'Local Human':
-            if print_board:
-                print g
-                print ''
-            try:
-                g.move(curr_player.next_move_txt(g))
-            except QuitGame:
-            	self.do_confirm_quit(self.do_play_game)
-            except ResignGame:
-                self.do_confirm_resign()
-
-        elif curr_player == 'Computer AI':
-            print curr_player_name + ' is thinking...'
+        if print_board:
+            print g
             print ''
-            move = self.get_ai_move()
-            print curr_player_name + ' moves: ' + str(move) + '.'
-            print ''
-            g.move(move)
-            if (g.is_over):
-                self.do_finish_game()
-            elif (self.white_player == self.black_player == 'Computer AI'):
-                # Both players are AIs.
-                # Give human spectators time to watch.
-                print g
-                print ''
-                print 'Press any key to continue.'
-                print ''
-                i = raw_input()
-                self.do_play_game(print_board = False)
-            else:
-                self.do_play_game()
-
-    def get_ai_move(self):
-        """Temporary stand-in for AI opponent.  Pick a random valid move."""
-        valid_moves = self.game.board.get_valid_moves()
-        return valid_moves[randint(0, len(valid_moves) - 1)]
+        try:
+            g.move(curr_player.next_move(g))
+        except QuitGame:
+            self.do_confirm_quit(self.do_play_game)
+        except ResignGame:
+            self.do_confirm_resign()
 
     def do_confirm_resign(self):
         print self.game.board.to_move.capitalize() + ', really resign (y/n)?'
@@ -195,7 +165,7 @@ class SimpleRunner(object):
         print ''
         print 'Press any key to start over.'
         print ''
-        i = raw_input()
+        raw_input()
         self.do_title_menu()
 
     def run(self):
