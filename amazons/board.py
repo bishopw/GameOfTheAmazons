@@ -361,9 +361,15 @@ class Board(object):
 
         # Attempt to walk the path.
         while (cur != end):
-            cur = Square(cur.x + dir['x'], cur.y + dir['y'])
+            try:
+                cur = Square(cur.x + dir['x'], cur.y + dir['y'])
+            except ValueError:
+                # Must have gone off the board in a negative direction.
+                return False
+
             if cur == ignore:
                 continue
+
             try:
                 occupant = self[cur.x][cur.y]
                 if (occupant != EMPTY):
@@ -377,7 +383,7 @@ class Board(object):
 
     def check_is_move_valid(self, move):
         """
-        Returns true if the specified move is valid on this board, otherwise
+        Returns True if the specified move is valid on this board, otherwise
         throws an InvalidMoveError containing the problem with the move.
         """
         move = Move(move)
@@ -418,6 +424,7 @@ class Board(object):
         if not self.is_path_clear(to, arrow, ignore=frm):
             raise InvalidMoveError("There's no path from " + str(to) +
                                    ' to ' + str(arrow))
+        return True
 
     def move(self, move):
         """
