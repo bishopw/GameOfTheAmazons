@@ -548,16 +548,24 @@ class PygameRunner(object):
             self.td(e)
             self.tr()
             self.tr()
-            options_d = PygameRunner.OptionsDialog(settings=runner.app_settings)
             class OptionsButton(gui.Button):
                 def __init__(self, **kwargs):
                     kwargs['value'] = 'Options'
                     gui.Button.__init__(self, **kwargs)
-                    self.connect(gui.CLICK,options_d.open,None)
+                    self.connect(gui.CLICK,self.on_click,None)
+                def on_click(self, *args):
+                    s = runner.app_settings
+                    options_d = PygameRunner.OptionsDialog(settings=s)
+                    options_d.open()
             e = OptionsButton()
             self.td(e)
             self.tr()
-            quit_d = PygameRunner.QuitDialog()
+            def post_quit(self, *args):
+                pygame.event.post(pygame.event.Event(QUIT))
+            quit_d = PygameRunner.ConfirmDialog(title='Confirm Quit',
+                                                msg='Are you sure you want to quit?',
+                                                confirm='Quit',
+                                                confirm_func=post_quit)
             class QuitButton(gui.Button):
                 def __init__(self, **kwargs):
                     kwargs['value'] = 'Quit'
@@ -821,9 +829,13 @@ class PygameRunner(object):
                 # Validate fixed times > 00:00 on form submit.
                 if (int(f['w_fixed_minutes'].value) +
                     int(f['w_fixed_seconds'].value)) <= 0:
+                    PygameRunner.ConfirmDialog(title='Invalid White Clock Time',
+                                               msg='White clock time cannot be 0.').open()
                     return
                 if (int(f['b_fixed_minutes'].value) +
                     int(f['b_fixed_seconds'].value)) <= 0:
+                    PygameRunner.ConfirmDialog(title='Invalid Black Clock Time',
+                                               msg='Black clock time cannot be 0.').open()
                     return
 
                 s['w_player'] = f['w_player_group'].value
@@ -847,54 +859,39 @@ class PygameRunner(object):
                 s['territory_marking'] = f['territory_group'].value
                 s['show_ai_details'] = f['show_ai_details'].value
 
-                print 'ok clicked'
-                print '  w_player_group: ' + s['w_player']
-                print '  w_diff_slider: ' + str(s['w_difficulty'])
-                print '  w_use_fixed_time: ' + str(s['w_use_fixed_time'])
-                print '  w_fixed_minutes: ' + str(s['w_minutes'])
-                print '  w_fixed_seconds: ' + str(s['w_seconds'])
-                print '  w_use_byoyomi: ' + str(s['w_use_byoyomi'])
-                print '  w_byoyomi_periods: ' + str(s['w_byoyomi_periods'])
-                print '  w_byoyomi_seconds: ' + str(s['w_byoyomi_seconds'])
-                print '  b_player_group: ' + s['b_player']
-                print '  b_diff_slider: ' + str(s['b_difficulty'])
-                print '  b_use_fixed_time: ' + str(s['b_use_fixed_time'])
-                print '  b_fixed_minutes: ' + str(s['b_minutes'])
-                print '  b_fixed_seconds: ' + str(s['b_seconds'])
-                print '  b_use_byoyomi: ' + str(s['b_use_byoyomi'])
-                print '  b_byoyomi_periods: ' + str(s['b_byoyomi_periods'])
-                print '  b_byoyomi_seconds: ' + str(s['b_byoyomi_seconds'])
-                print '  territory_group: ' + str(s['territory_marking'])
-                print '  show_ai_details: ' + str(s['show_ai_details'])
-
                 dialog.close()
+
             apply_button.connect(gui.CLICK, apply_clicked)
 
             gui.Dialog.__init__(self, title, c)
 
-
-    class QuitDialog(gui.Dialog):
-        def __init__(self, **kwargs):
-            title = gui.Label('Confirm Quit')
+    class ConfirmDialog(gui.Dialog):
+        def __init__(self, title='Confirm', msg='Are you sure?', confirm='OK',
+                     confirm_func=None, cancel='Cancel', **kwargs):
+            title_lbl = gui.Label(title)
 
             t = gui.Table()
 
             t.tr()
-            t.add(gui.Label('Are you sure you want to quit?'),colspan=2)
+            t.add(gui.Label(msg),colspan=2)
 
             t.tr()
-            e = gui.Button("Quit")
-            e.connect(gui.CLICK,self.on_click, None)
-            t.td(e)
+            if confirm_func == None:
+                # Just a confirm button.
+                e = gui.Button(confirm)
+                e.connect(gui.CLICK, confirm, self.close, None)
+                t.td(e, colspan=2)
+            else:
+                # Add a confirm and cancel button.
+                e = gui.Button(confirm)
+                e.connect(gui.CLICK, confirm_func, None)
+                t.td(e)
 
-            e = gui.Button("Cancel")
-            e.connect(gui.CLICK, self.close, None)
-            t.td(e)
+                e = gui.Button(cancel)
+                e.connect(gui.CLICK, self.close, None)
+                t.td(e)
 
-            gui.Dialog.__init__(self, title, t)
-
-        def on_click(self, *args):
-            pygame.event.post(pygame.event.Event(QUIT))
+            gui.Dialog.__init__(self, title_lbl, t)
 
 
     # UTILITY METHODS #########################################################
