@@ -2,7 +2,7 @@ from move import Move
 from board import Board
 from game import Game
 from invalid_move_error import InvalidMoveError
-from player import Player,AIPlayer
+from player import Player,AIPlayer,NetworkPlayer
 from board import WHITE,BLACK
 from player import ResignGame,QuitGame
 
@@ -89,9 +89,11 @@ class SimpleRunner(object):
                 self.black_player = Player(BLACK, text_ui=True)
             self.do_title_menu()
         elif i == '2':
-            print "Sorry, that's not implemented yet."
-            print ''
-            self.do_set_player(player)
+            if player == 0:
+                self.white_player = NetworkPlayer(WHITE, text_ui=True)
+            else:
+                self.black_player = NetworkPlayer(BLACK, text_ui=True)
+            self.do_title_menu()
         elif i == '3':
             if player == 0:
                 self.white_player = AIPlayer(WHITE)
