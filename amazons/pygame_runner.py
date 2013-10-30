@@ -31,10 +31,12 @@ class PygameRunner(object):
     PHASE_GAME = 2
 
     # Sub-phases.
+    SUBPHASE_NONE = -1
     SUBPHASE_WAIT_FOR_AI = 0
     SUBPHASE_PICK_AMAZON = 1
     SUBPHASE_PLACE_AMAZON = 2
     SUBPHASE_SHOOT_ARROW = 3
+    SUBPHASE_GAME_OVER = 4
 
     def __init__(self, width=10, height=10, white_amazons='a4, d1, g1, j4',
                  black_amazons="a7, d10, g10, j7", arrows="", to_move='white'):
@@ -172,7 +174,7 @@ class PygameRunner(object):
         pygame.mouse.set_visible(True)
 
         pygame.quit()
-        sys.exit
+        sys.exit(0)
 
     def game_loop(self):
         """Run the main game loop until the player quits."""
@@ -240,7 +242,10 @@ class PygameRunner(object):
                          s['black_amazons'], s['arrows'], s['to_move'])
 
         # Update GUI.
-        self.gui_cont.remove(self.title_gui)
+        try:
+            self.gui_cont.remove(self.title_gui)
+        except ValueError: # not in list
+            pass
 
         # Update Phase.
         self.phase = self.PHASE_TRANSITION
@@ -261,6 +266,9 @@ class PygameRunner(object):
             self.msg = board.to_move.capitalize()+', pick a square to move to.'
         elif new_subphase == self.SUBPHASE_SHOOT_ARROW:
             self.msg = board.to_move.capitalize() + ', shoot an arrow.'
+        elif new_subphase == self.SUBPHASE_GAME_OVER:
+            self.msg = "Game over: %s wins" % self.game.winner
+            self.game_over()
 
     def start_current_move(self):
         """
@@ -270,6 +278,10 @@ class PygameRunner(object):
         self.amazon_target = None
         self.is_dragging = False
         board = self.game.board
+        if (len(board.get_valid_moves()) == 0):
+            self.game.winner = 'black' if board.to_move == "white" else "white"
+            self.set_subphase(self.SUBPHASE_GAME_OVER)
+            return
         curr_player = (self.white_player if (board.to_move == "white") 
                        else self.black_player)
         if (curr_player == 'Local Human'):
@@ -896,7 +908,33 @@ class PygameRunner(object):
         def on_click(self, *args):
             pygame.event.post(pygame.event.Event(QUIT))
 
-
+    class GameOverDialog(gui.Dialog):
+        def __init__(self, winner=None, **kwargs):
+            title = gui.Label('Game over')
+            t = gui.Table()
+            t.tr()
+            t.add(gui.Label("%s wins" % winner))
+        
+            t.tr()
+            
+            if 'runner' in kwargs:
+                self.runner = kwargs['runner']
+                e = gui.Button("New Game")
+                e.connect(gui.CLICK, self.new_game, None)
+                t.td(e)
+            
+            e = gui.Button("Quit")
+            e.connect(gui.CLICK, self.quit_game, None)
+            t.td(e)
+            
+            gui.Dialog.__init__(self, title, t)
+            
+        def quit_game(self, *args):
+            pygame.event.post(pygame.event.Event(QUIT))
+        def new_game(self, *args):
+            self.runner.on_new_game()
+            self.close()
+            
     # UTILITY METHODS #########################################################
 
     def get_board_x(self):
@@ -989,3 +1027,9 @@ class PygameRunner(object):
             t_remaining = t_total - t
             x_at_inverted_time = self.x_at_time(xi, 0.0, a, t_remaining*2.0)
             return xf - x_at_inverted_time
+    
+    def game_over(self):
+        game_over_d = PygameRunner.GameOverDialog(winner=self.game.winner, runner=self)
+        game_over_d.open()
+        self.game.winner = None
+        self.subphase = self.SUBPHASE_NONE
