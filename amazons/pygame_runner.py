@@ -28,15 +28,12 @@ class PygameRunner(object):
     # Different phases the game app can be in.
     PHASE_TITLE = 0
     PHASE_TRANSITION = 1
-    PHASE_GAME = 2
-
-    # Sub-phases.
-    SUBPHASE_NONE = -1
-    SUBPHASE_WAIT_FOR_AI = 0
-    SUBPHASE_PICK_AMAZON = 1
-    SUBPHASE_PLACE_AMAZON = 2
-    SUBPHASE_SHOOT_ARROW = 3
-    SUBPHASE_GAME_OVER = 4
+    PHASE_WAIT_FOR_AI = 2
+    PHASE_PICK_AMAZON = 3
+    PHASE_PLACE_AMAZON = 4
+    PHASE_SHOOT_ARROW = 5
+    PHASE_GAME_OVER = 6
+    PHASE_TRANSITION_BACK = 7
 
     def __init__(self, width=10, height=10, white_amazons='a4, d1, g1, j4',
                  black_amazons="a7, d10, g10, j7", arrows="", to_move='white'):
@@ -78,7 +75,6 @@ class PygameRunner(object):
                          s['black_amazons'], s['arrows'], s['to_move'])
 
         self.phase = self.PHASE_TITLE
-        self.subphase = self.SUBPHASE_PICK_AMAZON
 
         self.amazon_in_hand = None # Amazon currently being held by player.
         self.amazon_target = None  # Chosen target to move the amazon to.
@@ -157,6 +153,7 @@ class PygameRunner(object):
         gui_app = gui.App()
 
         self.title_gui = self.TitleGUI(runner=self)
+        self.game_gui = self.GameGUI(runner=self)
 
         self.gui_cont = gui.Container(align=-1,valign=-1)
         self.gui_cont.add(self.title_gui,
@@ -181,15 +178,33 @@ class PygameRunner(object):
         while not self.quitting:
             # Update game state.
             if self.phase == self.PHASE_TRANSITION:
-                # Slide to the board or back to the title screen.
-                self.world_y = int(self.interpolated_x_at_time(0.0, self.screen_h, 
+                # Slide to the board.
+                self.world_y = int(self.interpolated_x_at_time(0.0, 
+                                                               self.screen_h, 
                                                                15.0,
                                                                float(self.transition_tick)))
                 self.transition_tick += 1
                 if (self.transition_tick == 15):
                     self.world_y = self.screen_h
-                    self.phase = self.PHASE_GAME
+                    self.gui_cont.add(self.game_gui,
+                          self.get_board_x() + self.get_board_w() + 10,
+                          self.get_board_y() + self.get_board_h() - 10 -
+                          self.game_gui.height)
                     self.start_current_move()
+            elif self.phase == self.PHASE_TRANSITION_BACK:
+                # Slide back to the title screen.
+                self.world_y = (self.screen_h -
+                                int(self.interpolated_x_at_time(0.0,
+                                                                self.screen_h,
+                                                                15.0,
+                                                                float(self.transition_tick))))
+                self.transition_tick += 1
+                if (self.transition_tick == 15):
+                    self.world_y = 0
+                    self.set_phase(self.PHASE_TITLE)
+                    self.gui_cont.add(self.title_gui,
+                          (self.screen_w / 2) - 160,
+                          (.8 * self.screen_h))
 
             self.render()
 
@@ -210,7 +225,7 @@ class PygameRunner(object):
             elif event.type == MOUSEBUTTONDOWN:
                 self.mouse['x'], self.mouse['y'] = event.pos
                 if event.button == 1:
-                    if self.subphase == self.SUBPHASE_PICK_AMAZON:
+                    if self.phase == self.PHASE_PICK_AMAZON:
                         self.pick_amazon()
                         if self.amazon_in_hand != None:
                             self.is_dragging = True
@@ -220,17 +235,17 @@ class PygameRunner(object):
                 if event.button == 1:
                     if self.is_dragging:
                         self.drop_amazon()
-                    elif self.subphase == self.SUBPHASE_PICK_AMAZON:
+                    elif self.phase == self.PHASE_PICK_AMAZON:
                         self.pick_amazon()
-                    elif self.subphase == self.SUBPHASE_PLACE_AMAZON:
+                    elif self.phase == self.PHASE_PLACE_AMAZON:
                         self.place_amazon()
-                    elif self.subphase == self.SUBPHASE_SHOOT_ARROW:
+                    elif self.phase == self.PHASE_SHOOT_ARROW:
                         self.shoot_arrow()
 
             elif event.type == KEYUP:
                 if event.key == K_ESCAPE:
-                    if self.subphase in (self.SUBPHASE_PLACE_AMAZON,
-                                         self.SUBPHASE_SHOOT_ARROW):
+                    if self.phase in (self.PHASE_PLACE_AMAZON,
+                                         self.PHASE_SHOOT_ARROW):
                         # Reset current move.
                         self.start_current_move()
                     else:
@@ -251,43 +266,59 @@ class PygameRunner(object):
         self.phase = self.PHASE_TRANSITION
         self.transition_tick = 0
 
-    def set_subphase(self, new_subphase):
+    def back_to_title(self, *args):
+        self.set_phase(self.PHASE_TRANSITION_BACK)
+        self.transition_tick = 0
+
+    def set_phase(self, new_phase):
         """
-        Sets the current subphase to the specified value and adjusts the
+        Sets the current phase to the specified value and adjusts the
         main message as appropriate.
         """
         board = self.game.board
-        self.subphase = new_subphase
-        if new_subphase == self.SUBPHASE_PICK_AMAZON:
+        self.phase = new_phase
+        if new_phase == self.PHASE_PICK_AMAZON:
             self.msg = board.to_move.capitalize() + ', pick an amazon to move.'
-        elif new_subphase == self.SUBPHASE_WAIT_FOR_AI:
+        elif new_phase == self.PHASE_WAIT_FOR_AI:
             self.msg = board.to_move.capitalize() + ' is thinking...'
-        elif new_subphase == self.SUBPHASE_PLACE_AMAZON:
+        elif new_phase == self.PHASE_PLACE_AMAZON:
             self.msg = board.to_move.capitalize()+', pick a square to move to.'
-        elif new_subphase == self.SUBPHASE_SHOOT_ARROW:
+        elif new_phase == self.PHASE_SHOOT_ARROW:
             self.msg = board.to_move.capitalize() + ', shoot an arrow.'
-        elif new_subphase == self.SUBPHASE_GAME_OVER:
-            self.msg = "Game over: %s wins" % self.game.winner
-            self.game_over()
+        elif new_phase == self.PHASE_GAME_OVER:
+            self.msg = "Game Over: %s wins!" % self.game.winner.capitalize()
+        else:
+            self.msg = ""
+        self.game_gui.do_layout(new_phase)
+        try:
+            self.gui_cont.remove(self.game_gui)
+        except ValueError: # game_gui not in gui container - that's fine
+            pass
+        if new_phase in (self.PHASE_PICK_AMAZON, self.PHASE_PLACE_AMAZON,
+                         self.PHASE_SHOOT_ARROW, self.PHASE_WAIT_FOR_AI,
+                         self.PHASE_GAME_OVER):
+            self.gui_cont.add(self.game_gui,
+                          self.get_board_x() + self.get_board_w() + 10,
+                          self.get_board_y() + self.get_board_h() - 10 -
+                          self.game_gui.height)
 
     def start_current_move(self):
         """
-        Chooses the appropriate subphase given the current player (human or AI).
+        Chooses the appropriate phase given the current player (human or AI).
         """
         self.amazon_in_hand = None
         self.amazon_target = None
         self.is_dragging = False
         board = self.game.board
-        if (len(board.get_valid_moves()) == 0):
-            self.game.winner = 'black' if board.to_move == "white" else "white"
-            self.set_subphase(self.SUBPHASE_GAME_OVER)
+        if (self.game.is_over):
+            self.set_phase(self.PHASE_GAME_OVER)
             return
         curr_player = (self.white_player if (board.to_move == "white") 
                        else self.black_player)
         if (curr_player == 'Local Human'):
-            self.set_subphase(self.SUBPHASE_PICK_AMAZON)
+            self.set_phase(self.PHASE_PICK_AMAZON)
         else:
-            self.set_subphase(self.SUBPHASE_WAIT_FOR_AI)
+            self.set_phase(self.PHASE_WAIT_FOR_AI)
 
     def pick_amazon(self):
         """Pick the amazon at the current cursor position to move."""
@@ -298,7 +329,7 @@ class PygameRunner(object):
         sq = Square(sq)
         if sq in board.current_amazons:
             self.amazon_in_hand = Square(sq)
-            self.set_subphase(self.SUBPHASE_PLACE_AMAZON)
+            self.set_phase(self.PHASE_PLACE_AMAZON)
 
     def drop_amazon(self):
         """Drop an amazon you had been mouse-dragging."""
@@ -316,7 +347,7 @@ class PygameRunner(object):
         elif board.is_path_clear(self.amazon_in_hand, sq):
             # User released on a valid square - choose it as target and move on.
             self.amazon_target = sq
-            self.set_subphase(self.SUBPHASE_SHOOT_ARROW)
+            self.set_phase(self.PHASE_SHOOT_ARROW)
         else:
             # User released on an invalid square.  Restart current move.
             self.start_current_move()
@@ -331,7 +362,7 @@ class PygameRunner(object):
         sq = Square(sq)
         if board.is_path_clear(self.amazon_in_hand, sq):
             self.amazon_target = sq
-            self.set_subphase(self.SUBPHASE_SHOOT_ARROW)
+            self.set_phase(self.PHASE_SHOOT_ARROW)
         else:
             self.start_current_move() # Invalid square.  Restart current move.
             return
@@ -356,6 +387,11 @@ class PygameRunner(object):
             self.start_current_move() # Invalid square.  Restart current move.
             return
 
+    def resign(self):
+        self.game.move('resign')
+        self.start_current_move()
+        self.sounds['bounce'].play()
+
 
     # RENDERING ###############################################################
 
@@ -368,14 +404,13 @@ class PygameRunner(object):
 
         self.render_title()
 
-        if self.phase != self.PHASE_TITLE:
-            self.render_board()
+        self.render_board()
 
-        if self.phase == self.PHASE_GAME:
+        if self.phase in (self.PHASE_PICK_AMAZON, self.PHASE_PLACE_AMAZON,
+                          self.PHASE_SHOOT_ARROW):
             self.render_indicators()
 
-        if self.phase != self.PHASE_TRANSITION:
-            self.gui_app.paint()
+        self.gui_app.paint()
 
         self.render_cursor()
 
@@ -384,10 +419,10 @@ class PygameRunner(object):
     def render_cursor(self):
         board = self.game.board
         c_surf = self.surfaces['cursor']
-        if self.subphase == self.SUBPHASE_PLACE_AMAZON:
+        if self.phase == self.PHASE_PLACE_AMAZON:
             c_surf = (self.surfaces['white_cursor'] if board.to_move == 'white'
                       else self.surfaces['black_cursor'])
-        elif self.subphase == self.SUBPHASE_SHOOT_ARROW:
+        elif self.phase == self.PHASE_SHOOT_ARROW:
             c_surf = self.surfaces['arrow_cursor']
         self.blit_clipped(c_surf, self.mouse['x'], self.mouse['y'])
 
@@ -468,7 +503,7 @@ class PygameRunner(object):
         Draw circles and squares indicating legal/illegal clicks, and hazy_white
         pieces to indicate amazons chosen for movement.
         """
-        if self.subphase == self.SUBPHASE_WAIT_FOR_AI:
+        if self.phase == self.PHASE_WAIT_FOR_AI:
             return
 
         # Draw hazy pieces.
@@ -476,13 +511,12 @@ class PygameRunner(object):
         hazy_surf = (self.surfaces['hazy_white'] if board.to_move == "white"
                      else self.surfaces['hazy_black'])
 
-        if (self.subphase == self.SUBPHASE_PLACE_AMAZON
-            or self.subphase == self.SUBPHASE_SHOOT_ARROW):
+        if (self.phase in (self.PHASE_PLACE_AMAZON, self.PHASE_SHOOT_ARROW)):
             hazy_x, hazy_y = self.get_screen_pos(self.amazon_in_hand.x,
                                                  self.amazon_in_hand.y)
             self.blit_clipped(hazy_surf, hazy_x, hazy_y)
 
-        if self.subphase == self.SUBPHASE_SHOOT_ARROW:
+        if self.phase == self.PHASE_SHOOT_ARROW:
             hazy_x, hazy_y = self.get_screen_pos(self.amazon_target.x,
                                                  self.amazon_target.y)
             self.blit_clipped(hazy_surf, hazy_x, hazy_y)
@@ -494,11 +528,11 @@ class PygameRunner(object):
         c_square = Square(c_square)
         indicator_pos = self.get_screen_pos(c_square[0], c_square[1])
         is_legal = False
-        if self.subphase == self.SUBPHASE_PICK_AMAZON:
+        if self.phase == self.PHASE_PICK_AMAZON:
             is_legal = c_square in board.current_amazons
-        elif self.subphase == self.SUBPHASE_PLACE_AMAZON:
+        elif self.phase == self.PHASE_PLACE_AMAZON:
             is_legal = board.is_path_clear(self.amazon_in_hand, c_square)
-        elif self.subphase == self.SUBPHASE_SHOOT_ARROW:
+        elif self.phase == self.PHASE_SHOOT_ARROW:
             is_legal = board.is_path_clear(self.amazon_target, c_square, 
                                            ignore=self.amazon_in_hand)
         surf = self.surfaces['circle'] if is_legal else self.surfaces['x']
@@ -572,7 +606,7 @@ class PygameRunner(object):
             e = OptionsButton()
             self.td(e)
             self.tr()
-            def post_quit(self, *args):
+            def post_quit():
                 pygame.event.post(pygame.event.Event(QUIT))
             quit_d = PygameRunner.ConfirmDialog(title='Confirm Quit',
                                                 msg='Are you sure you want to quit?',
@@ -585,6 +619,124 @@ class PygameRunner(object):
                     self.connect(gui.CLICK,quit_d.open,None)
             e = QuitButton()
             self.td(e)
+
+    class GameGUI(gui.Container):
+        def __init__(self,**kwargs):
+            kwargs['width'] = 100
+            kwargs['height'] = 160
+            gui.Container.__init__(self, **kwargs)
+            runner = kwargs['runner']
+
+            self.table = gui.Table()
+            self.add(self.table, 0, 0)
+
+            self.height = 0
+
+            self.undo_button = gui.Button('Undo')
+            self.undo_button.is_visible = False
+
+            self.continue_button = gui.Button('Continue')
+            self.continue_button.is_visible = False
+
+            class ResignButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'Resign'
+                    gui.Button.__init__(self, **kwargs)
+                    self.is_visible = False
+                    self.connect(gui.CLICK, self.on_click)
+                def on_click(self):
+                    PygameRunner.ConfirmDialog(title='Confirm Resign',
+                                               msg='Are you sure you want to resign?',
+                                               confirm='Resign',
+                                               confirm_func=runner.resign).open()
+            self.resign_button = ResignButton()
+
+            self.play_again_button = gui.Button('Play Again')
+            self.play_again_button.is_visible = False
+
+            class OptionsButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'Options'
+                    gui.Button.__init__(self, **kwargs)
+                    self.is_visible = False
+                    self.connect(gui.CLICK,self.on_click)
+                def on_click(self, *args):
+                    s = runner.app_settings
+                    options_d = PygameRunner.OptionsDialog(settings=s)
+                    options_d.open()
+            self.options_button = OptionsButton()
+
+            class TitleMenuButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'Title Menu'
+                    gui.Button.__init__(self, **kwargs)
+                    self.is_visible = False
+                    self.connect(gui.CLICK, self.on_click, None)
+                def on_click(self, *args):
+                    if runner.game.is_over:
+                        runner.back_to_title()
+                    else:
+                        PygameRunner.ConfirmDialog(title='Confirm End Game',
+                            msg='Are you sure you want to end the game ' +\
+                                'and return to the title menu?',
+                            confirm='End Game',
+                            confirm_func=runner.back_to_title).open()
+            self.title_menu_button = TitleMenuButton()
+
+            def post_quit():
+                pygame.event.post(pygame.event.Event(QUIT))
+            class QuitButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'Quit'
+                    gui.Button.__init__(self, **kwargs)
+                    self.is_visible = False
+                    self.connect(gui.CLICK,self.on_click)
+                def on_click(self):
+                    PygameRunner.ConfirmDialog(title='Confirm Quit',
+                                               msg='Are you sure you want to quit?',
+                                               confirm='Quit',
+                                               confirm_func=post_quit).open()
+            self.quit_button = QuitButton()
+
+        def add_button(self, table, button):
+            button.is_visible = True
+            table.tr()
+            table.td(button)
+            self.height += 20
+
+        def do_layout(self, phase):
+            # Decide which game menu buttons should be visible based on
+            # current game phase.
+            self.undo_button.is_visible = False
+            self.continue_button.is_visible = False
+            self.resign_button.is_visible = False
+            self.play_again_button.is_visible = False
+            self.options_button.is_visible = False
+            self.title_menu_button.is_visible = False
+            self.quit_button.is_visible = False
+
+            self.remove(self.table)
+            self.height = 0
+            self.table = gui.Table()
+            t = self.table
+            PR = PygameRunner
+
+            if (phase == PR.PHASE_WAIT_FOR_AI):
+                self.add_button(t, self.options_button)
+                self.add_button(t, self.title_menu_button)
+                self.add_button(t, self.quit_button)
+            elif (phase in (PR.PHASE_PICK_AMAZON, PR.PHASE_PLACE_AMAZON,
+                            PR.PHASE_SHOOT_ARROW)):
+                self.add_button(t, self.resign_button)
+                self.add_button(t, self.options_button)
+                self.add_button(t, self.title_menu_button)
+                self.add_button(t, self.quit_button)
+            elif (phase == PR.PHASE_GAME_OVER):
+                self.add_button(t, self.options_button)
+                self.add_button(t, self.title_menu_button)
+                self.add_button(t, self.quit_button)
+
+            self.add(t, 0, 0)
 
     class OptionsDialog(gui.Dialog):
         def __init__(self, **kwargs):
@@ -793,6 +945,14 @@ class PygameRunner(object):
                 textarea.value = textarea.value.strip()
                 if len(textarea.value) < 2:
                     textarea.value = '{:0>2d}'.format(int(textarea.value))
+                # Special validation - check times > 00:00.
+                if (int(w_fixed_minutes.value) +
+                    int(w_fixed_seconds.value)) <= 0:
+                    w_fixed_seconds.value = '01'
+                if (int(b_fixed_minutes.value) +
+                    int(b_fixed_seconds.value)) <= 0:
+                    b_fixed_seconds.value = '01'                
+
             w_fixed_minutes.connect(gui.BLUR, time_changed, w_fixed_minutes,
                                     20, 0, 9999)
             w_fixed_seconds.connect(gui.BLUR, time_changed, w_fixed_seconds,
@@ -838,18 +998,6 @@ class PygameRunner(object):
 
             cancel_button.connect(gui.CLICK, dialog.close)
             def apply_clicked():
-                # Validate fixed times > 00:00 on form submit.
-                if (int(f['w_fixed_minutes'].value) +
-                    int(f['w_fixed_seconds'].value)) <= 0:
-                    PygameRunner.ConfirmDialog(title='Invalid White Clock Time',
-                                               msg='White clock time cannot be 0.').open()
-                    return
-                if (int(f['b_fixed_minutes'].value) +
-                    int(f['b_fixed_seconds'].value)) <= 0:
-                    PygameRunner.ConfirmDialog(title='Invalid Black Clock Time',
-                                               msg='Black clock time cannot be 0.').open()
-                    return
-
                 s['w_player'] = f['w_player_group'].value
                 s['w_difficulty'] = f['w_diff_slider'].value
                 s['w_use_fixed_time'] = f['w_use_fixed_time'].value
@@ -891,12 +1039,14 @@ class PygameRunner(object):
             if confirm_func == None:
                 # Just a confirm button.
                 e = gui.Button(confirm)
-                e.connect(gui.CLICK, confirm, self.close, None)
+                e.connect(gui.CLICK, self.close, None)
                 t.td(e, colspan=2)
             else:
                 # Add a confirm and cancel button.
+                self.confirm_func = confirm_func
+
                 e = gui.Button(confirm)
-                e.connect(gui.CLICK, confirm_func, None)
+                e.connect(gui.CLICK, self.on_confirm, None)
                 t.td(e)
 
                 e = gui.Button(cancel)
@@ -905,33 +1055,10 @@ class PygameRunner(object):
 
             gui.Dialog.__init__(self, title_lbl, t)
 
-    class GameOverDialog(gui.Dialog):
-        def __init__(self, winner=None, **kwargs):
-            title = gui.Label('Game over')
-            t = gui.Table()
-            t.tr()
-            t.add(gui.Label("%s wins" % winner))
-        
-            t.tr()
-            
-            if 'runner' in kwargs:
-                self.runner = kwargs['runner']
-                e = gui.Button("New Game")
-                e.connect(gui.CLICK, self.new_game, None)
-                t.td(e)
-            
-            e = gui.Button("Quit")
-            e.connect(gui.CLICK, self.quit_game, None)
-            t.td(e)
-            
-            gui.Dialog.__init__(self, title, t)
-            
-        def quit_game(self, *args):
-            pygame.event.post(pygame.event.Event(QUIT))
-        def new_game(self, *args):
-            self.runner.on_new_game()
+        def on_confirm(self, *args):
             self.close()
-            
+            self.confirm_func()
+
     # UTILITY METHODS #########################################################
 
     def get_board_x(self):
@@ -941,6 +1068,12 @@ class PygameRunner(object):
     def get_board_y(self):
         board_h = self.surfaces['board'].get_height()
         return (self.screen_h + ((self.screen_h / 2) - (board_h / 2))) - self.world_y
+
+    def get_board_w(self):
+        return self.surfaces['board'].get_width()
+
+    def get_board_h(self):
+        return self.surfaces['board'].get_height()
 
     def get_screen_pos(self, board_col, board_row):
         """
@@ -1024,9 +1157,3 @@ class PygameRunner(object):
             t_remaining = t_total - t
             x_at_inverted_time = self.x_at_time(xi, 0.0, a, t_remaining*2.0)
             return xf - x_at_inverted_time
-    
-    def game_over(self):
-        game_over_d = PygameRunner.GameOverDialog(winner=self.game.winner, runner=self)
-        game_over_d.open()
-        self.game.winner = None
-        self.subphase = self.SUBPHASE_NONE
