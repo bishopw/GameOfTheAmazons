@@ -26,7 +26,7 @@ class Game(object):
         if self.is_over:
             raise InvalidMoveException('The game is over - no moves allowed')
         b = self.board
-        if (move in ['resign', 'r']):
+        if (move in ['resign', 'r', 'time_over']):
             self.winner = 'white' if b.to_move == 'black' else 'black'
         else:
             b = b.move(move)

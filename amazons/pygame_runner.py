@@ -9,6 +9,7 @@ from move import Move
 from board import Board,BLACK,WHITE
 from game import Game
 from player import Player,NetworkPlayer,AIPlayer
+from clock import Clock
 
 # Useful constants.
 SQUARE_PX = 60 # Size of a board square in pixels.
@@ -51,30 +52,32 @@ class PygameRunner(object):
         self.app_settings = {
             'w_player': 'human',
             'w_difficulty': 5,
-            'w_use_fixed_time': False,
+            'w_use_fixed_time': True,
             'w_minutes': 20,
             'w_seconds': 0,
-            'w_use_byoyomi': False,
-            'w_byoyomi_periods': 3,
+            'w_use_byoyomi': True,
+            'w_byoyomi_periods': 5,
             'w_byoyomi_seconds': 30,
             'b_player': 'ai',
             'b_difficulty': 5,
-            'b_use_fixed_time': False,
+            'b_use_fixed_time': True,
             'b_minutes': 20,
             'b_seconds': 0,
-            'b_use_byoyomi': False,
-            'b_byoyomi_periods': 3,
+            'b_use_byoyomi': True,
+            'b_byoyomi_periods': 5,
             'b_byoyomi_seconds': 30,
             'territory_marking': TERRITORY_MARK_NONE,
             'show_ai_details': False
         }
         self.white_player = Player(WHITE)
         self.black_player = Player(BLACK)
-        self.clock = 'No Clock'
 
         s = self.game_settings
         self.game = Game(s['width'], s['height'], s['white_amazons'],
                          s['black_amazons'], s['arrows'], s['to_move'])
+
+        self.w_clock = None
+        self.b_clock = None
 
         self.phase = self.PHASE_TITLE
 
@@ -133,7 +136,8 @@ class PygameRunner(object):
             'white': pygame.Color(255, 255, 255)
         }
         self.fonts = {
-            'freesansbold': pygame.font.Font('freesansbold.ttf', 32)
+            'freesansbold': pygame.font.Font('freesansbold.ttf', 32),
+            'comicsansms': pygame.font.Font('res/comicsansms.ttf', 24)
         }
         self.sounds = {
             'bounce': pygame.mixer.Sound('bounce.wav')
@@ -208,6 +212,18 @@ class PygameRunner(object):
                           (self.screen_w / 2) - 160,
                           (.8 * self.screen_h))
 
+            elif self.phase in (self.PHASE_PICK_AMAZON, self.PHASE_PLACE_AMAZON,
+                self.PHASE_SHOOT_ARROW, self.PHASE_WAIT_FOR_AI):
+                # End game if the clock runs out.
+                g = self.game
+                b = g.board
+                if ((b.to_move == 'white' and self.w_clock != None and
+                    self.w_clock.is_over) or (b.to_move == 'black' and
+                    self.b_clock != None and self.b_clock.is_over)):
+                    g.move('time_over')
+                    self.start_current_move()
+                    self.sounds['bounce'].play()
+
             self.render()
 
             self.process_inputs()
@@ -252,9 +268,35 @@ class PygameRunner(object):
                         self.start_current_move()
 
     def on_new_game(self):
-        s = self.game_settings
-        self.game = Game(s['width'], s['height'], s['white_amazons'],
-                         s['black_amazons'], s['arrows'], s['to_move'])
+        gs = self.game_settings
+        s = self.app_settings
+
+        # Instantiate game.
+        self.game = Game(gs['width'], gs['height'], gs['white_amazons'],
+                         gs['black_amazons'], gs['arrows'], gs['to_move'])
+
+        # Instantiate clocks.
+        w_use_clock = s['w_use_fixed_time'] or s['w_use_byoyomi']
+        w_minutes = w_seconds = w_periods = w_p_seconds = 0
+        if s['w_use_fixed_time']:
+            w_minutes = s['w_minutes']
+            w_seconds = s['w_seconds']
+        if s['w_use_byoyomi']:
+            w_periods = s['w_byoyomi_periods']
+            w_p_seconds = s['w_byoyomi_seconds']
+        self.w_clock = (Clock(w_minutes, w_seconds, w_periods, w_p_seconds)
+            if w_use_clock else None)
+
+        b_use_clock = s['b_use_fixed_time'] or s['b_use_byoyomi']
+        b_minutes = b_seconds = b_periods = b_p_seconds = 0
+        if s['b_use_fixed_time']:
+            b_minutes = s['b_minutes']
+            b_seconds = s['b_seconds']
+        if s['b_use_byoyomi']:
+            b_periods = s['b_byoyomi_periods']
+            b_p_seconds = s['b_byoyomi_seconds']
+        self.b_clock = (Clock(b_minutes, b_seconds, b_periods, b_p_seconds)
+            if b_use_clock else None)
 
         # Update GUI.
         try:
@@ -313,6 +355,8 @@ class PygameRunner(object):
         self.is_dragging = False
         board = self.game.board
         if (self.game.is_over):
+            if self.w_clock != None: self.w_clock.stop()
+            if self.b_clock != None: self.b_clock.stop()
             self.set_phase(self.PHASE_GAME_OVER)
             return
         curr_player = (self.white_player if (board.to_move == "white") 
@@ -329,6 +373,14 @@ class PygameRunner(object):
             self.set_phase(self.PHASE_PICK_AMAZON)
         else:
             self.set_phase(self.PHASE_PICK_AMAZON)
+
+        # Hit the game clock switch.
+        if (board.to_move == "white"):
+            if self.w_clock != None: self.w_clock.start()
+            if self.b_clock != None: self.b_clock.stop()
+        else:
+            if self.w_clock != None: self.w_clock.stop()
+            if self.b_clock != None: self.b_clock.start()
 
     def pick_amazon(self):
         """Pick the amazon at the current cursor position to move."""
@@ -420,6 +472,8 @@ class PygameRunner(object):
                           self.PHASE_SHOOT_ARROW):
             self.render_indicators()
 
+        self.render_clocks()
+
         self.gui_app.paint()
 
         self.render_cursor()
@@ -498,13 +552,19 @@ class PygameRunner(object):
         # TODO Draw territory if the option is on.
 
     def render_text_centered(self, text, x_center, y):
-        font = pygame.font.Font('res/comicsansms.ttf', 24)
-        msg_surf = font.render(self.msg, False, self.colors['white'])
+        font = self.fonts['comicsansms']
+        msg_surf = font.render(text, False, self.colors['white'])
         msg_rect = msg_surf.get_rect()
-        msg_rect.topleft = (x_center - (msg_rect.width / 2), y)
-        shadow_surf = font.render(self.msg, False, self.colors['black'])
+        self.render_text(text, x_center - (msg_rect.width / 2), y)
+
+    def render_text(self, text, x, y):
+        font = self.fonts['comicsansms']
+        msg_surf = font.render(text, False, self.colors['white'])
+        msg_rect = msg_surf.get_rect()
+        msg_rect.topleft = (x, y)
+        shadow_surf = font.render(text, False, self.colors['black'])
         shadow_rect = shadow_surf.get_rect()
-        shadow_rect.topleft = (x_center - (msg_rect.width / 2) + 2, y + 2)
+        shadow_rect.topleft = (x + 2, y + 2)
         self.window.blit(shadow_surf, shadow_rect)
         self.window.blit(msg_surf, msg_rect)
 
@@ -549,6 +609,55 @@ class PygameRunner(object):
         self.blit_clipped(surf,
                           indicator_pos[0],
                           indicator_pos[1])
+
+    def render_clocks(self):
+        """
+        Draw the remaining time for each player to the right of the board.
+        """
+        w_clock = self.w_clock
+        b_clock = self.b_clock
+        if (w_clock == None and b_clock == None):
+            return
+        line_height = 28
+        indent = 30
+        x = self.get_board_x() + self.get_board_w() + 10
+        y = self.get_board_y() + (self.get_board_h() / 2) - (4 * line_height)
+        self.render_text('White Time:', x, y)
+        if (w_clock == None):
+            self.render_text('Untimed', x + indent, y + line_height)
+        else:
+            if w_clock.has_fixed_time and w_clock.has_periods:
+                s = '{:d}:{:0>2d}'.format(w_clock.minutes, w_clock.seconds)
+                self.render_text(s, x + indent, y + line_height)
+                s = '+ {:d} x {:0>2d}'.format(w_clock.periods,
+                    w_clock.period_seconds)
+                self.render_text(s, x + indent, y + (2*line_height))
+            elif w_clock.has_fixed_time:
+                s = '{:d}:{:0>2d}'.format(w_clock.minutes, w_clock.seconds)
+                self.render_text(s, x + indent, y + line_height)
+            elif w_clock.has_periods:
+                s = '{:d} x {:0>2d}'.format(w_clock.periods,
+                    w_clock.period_seconds)
+                self.render_text(s, x + indent, y + line_height)
+        y += 4 * line_height
+        self.render_text('Black Time:', x, y)
+        if (b_clock == None):
+            self.render_text('Untimed', x + indent, y + line_height)
+        else:
+            if b_clock.has_fixed_time and b_clock.has_periods:
+                s = '{:d}:{:0>2d}'.format(b_clock.minutes, b_clock.seconds)
+                self.render_text(s, x + indent, y + line_height)
+                s = '+ {:d} x {:0>2d}'.format(b_clock.periods,
+                    b_clock.period_seconds)
+                self.render_text(s, x + indent, y + (2*line_height))
+            elif b_clock.has_fixed_time:
+                s = '{:d}:{:0>2d}'.format(b_clock.minutes, b_clock.seconds)
+                self.render_text(s, x + indent, y + line_height)
+            elif b_clock.has_periods:
+                s = '{:d} x {:0>2d}'.format(b_clock.periods,
+                    b_clock.period_seconds)
+                self.render_text(s, x + indent, y + line_height)
+
 
     def blit_clipped(self, surface, x, y):
         """
