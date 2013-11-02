@@ -80,14 +80,22 @@ class NetworkPlayer(Player):
 			self.port = kwargs['port']
 		else:
 			self.port = 60987
-	
+		self.sock = socket(AF_INET, SOCK_STREAM)
+		self.sock.connect((self.server, self.port))
+		self.sock.send("NEW_GAME")
+		self.sock.settimeout(5.0)
+		dat = self.sock.recv(1024)
+		if not dat == "ACK:NEW_GAME":
+			raise Exception("Could not connect to remote player")
+		self.sock.close()
+		
 	def __str__(self):
 		return "Network player"
 	
 	def next_move(self, game):
-		sock = socket(AF_INET, SOCK_STREAM)
-		sock.connect((self.server, self.port))
-		sock.send("/".join([str(x) for x in game.board.get_valid_moves()]))
-		move = sock.recv(4096)
+		self.sock = socket(AF_INET, SOCK_STREAM)
+		self.sock.connect((self.server, self.port))
+		self.sock.send("/".join([str(x) for x in game.board.get_valid_moves()]))
+		move = self.sock.recv(4096)
 		print "Network player moves: %s" % move
 		return Move(move)

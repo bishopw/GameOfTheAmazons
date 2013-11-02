@@ -17,6 +17,8 @@ try:
             print "waiting to recv"
             data = conn.recv(4096)
             print "received from socket: %s <%d>" % (data, len(data))
+            if data == "NEW_GAME":
+                conn.send("ACK:NEW_GAME")
             data_in += data
             #board = pickle.loads(data + "\n")
             valid_moves = data.split("/")
