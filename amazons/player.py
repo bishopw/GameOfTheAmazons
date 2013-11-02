@@ -84,7 +84,7 @@ class NetworkPlayer(Player):
 	def __str__(self):
 		return "Network player"
 	
-	def next_move_txt(self, game):
+	def next_move(self, game):
 		sock = socket(AF_INET, SOCK_STREAM)
 		sock.connect((self.server, self.port))
 		sock.send("/".join([str(x) for x in game.board.get_valid_moves()]))

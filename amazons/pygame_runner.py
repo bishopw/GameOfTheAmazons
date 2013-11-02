@@ -6,8 +6,9 @@ from pgu import gui
 
 from square import Square
 from move import Move
-from board import Board
+from board import Board,BLACK,WHITE
 from game import Game
+from player import Player,NetworkPlayer,AIPlayer
 
 # Useful constants.
 SQUARE_PX = 60 # Size of a board square in pixels.
@@ -29,11 +30,12 @@ class PygameRunner(object):
     PHASE_TITLE = 0
     PHASE_TRANSITION = 1
     PHASE_WAIT_FOR_AI = 2
-    PHASE_PICK_AMAZON = 3
-    PHASE_PLACE_AMAZON = 4
-    PHASE_SHOOT_ARROW = 5
-    PHASE_GAME_OVER = 6
-    PHASE_TRANSITION_BACK = 7
+    PHASE_WAIT_FOR_REMOTE = 3
+    PHASE_PICK_AMAZON = 4
+    PHASE_PLACE_AMAZON = 5
+    PHASE_SHOOT_ARROW = 6
+    PHASE_GAME_OVER = 7
+    PHASE_TRANSITION_BACK = 8
 
     def __init__(self, width=10, height=10, white_amazons='a4, d1, g1, j4',
                  black_amazons="a7, d10, g10, j7", arrows="", to_move='white'):
@@ -66,8 +68,8 @@ class PygameRunner(object):
             'territory_marking': TERRITORY_MARK_NONE,
             'show_ai_details': False
         }
-        self.white_player = 'Local Human'
-        self.black_player = 'Local Human'
+        self.white_player = Player(WHITE)
+        self.black_player = Player(BLACK)
         self.clock = 'No Clock'
 
         s = self.game_settings
@@ -248,8 +250,6 @@ class PygameRunner(object):
                                          self.PHASE_SHOOT_ARROW):
                         # Reset current move.
                         self.start_current_move()
-                    else:
-                        pygame.event.post(pygame.event.Event(QUIT))
 
     def on_new_game(self):
         s = self.game_settings
@@ -281,6 +281,8 @@ class PygameRunner(object):
             self.msg = board.to_move.capitalize() + ', pick an amazon to move.'
         elif new_phase == self.PHASE_WAIT_FOR_AI:
             self.msg = board.to_move.capitalize() + ' is thinking...'
+        elif new_phase == self.PHASE_WAIT_FOR_REMOTE:
+            self.msg = board.to_move.capitalize() + ': waiting for remote player'
         elif new_phase == self.PHASE_PLACE_AMAZON:
             self.msg = board.to_move.capitalize()+', pick a square to move to.'
         elif new_phase == self.PHASE_SHOOT_ARROW:
@@ -296,7 +298,7 @@ class PygameRunner(object):
             pass
         if new_phase in (self.PHASE_PICK_AMAZON, self.PHASE_PLACE_AMAZON,
                          self.PHASE_SHOOT_ARROW, self.PHASE_WAIT_FOR_AI,
-                         self.PHASE_GAME_OVER):
+                         self.PHASE_GAME_OVER, self.PHASE_WAIT_FOR_REMOTE):
             self.gui_cont.add(self.game_gui,
                           self.get_board_x() + self.get_board_w() + 10,
                           self.get_board_y() + self.get_board_h() - 10 -
@@ -315,10 +317,18 @@ class PygameRunner(object):
             return
         curr_player = (self.white_player if (board.to_move == "white") 
                        else self.black_player)
-        if (curr_player == 'Local Human'):
+        if isinstance(curr_player, AIPlayer):
+            self.set_phase(self.PHASE_WAIT_FOR_AI)
+        elif isinstance(curr_player, NetworkPlayer):
+            self.set_phase(self.PHASE_WAIT_FOR_REMOTE)
+            try:
+                self.game.move(curr_player.next_move(self.game))
+            except ValueError:
+                self.start_current_move()
+                return
             self.set_phase(self.PHASE_PICK_AMAZON)
         else:
-            self.set_phase(self.PHASE_WAIT_FOR_AI)
+            self.set_phase(self.PHASE_PICK_AMAZON)
 
     def pick_amazon(self):
         """Pick the amazon at the current cursor position to move."""
@@ -587,7 +597,16 @@ class PygameRunner(object):
             e = gui.Button('New Game - Wait for Remote Player')
             self.td(e)
             self.tr()
-            e = gui.Button('New Game - Connect to Remote Player')
+            class ConnectRemoteButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = "New Game - Connect to Remote Player"
+                    gui.Button.__init__(self, **kwargs)
+                    self.connect(gui.CLICK, self.on_click, None)
+                def on_click(self, *args):
+                    connect_d = PygameRunner.ConnectToRemoteDialog(runner)
+                    connect_d.open()
+                        
+            e = ConnectRemoteButton()
             self.td(e)
             self.tr()
             e = gui.Button('Rules')
@@ -721,7 +740,7 @@ class PygameRunner(object):
             t = self.table
             PR = PygameRunner
 
-            if (phase == PR.PHASE_WAIT_FOR_AI):
+            if (phase in (PR.PHASE_WAIT_FOR_AI, PR.PHASE_WAIT_FOR_REMOTE)):
                 self.add_button(t, self.options_button)
                 self.add_button(t, self.title_menu_button)
                 self.add_button(t, self.quit_button)
@@ -1059,6 +1078,60 @@ class PygameRunner(object):
             self.close()
             self.confirm_func()
 
+    class ConnectToRemoteDialog(gui.Dialog):
+        def __init__(self, runner):
+            self.runner = runner
+            title_lbl = gui.Label("Connect to remote player")
+
+            t = gui.Table()
+
+            t.tr()
+            t.add(gui.Label("Remote player hostname/IP  "),colspan=2)
+            self.w_remote_host = gui.TextArea(value="127.0.0.1",
+                                           size=2, width=100, height=20,
+                                           name='w_remote_host')
+            t.add(self.w_remote_host)
+            t.tr()
+            t.add(gui.Label("Remote player port  "),colspan=2)
+            self.w_remote_port = gui.TextArea(value="60987",
+                                           size=2, width=100, height=20,
+                                           name='w_remote_port')
+            t.add(self.w_remote_port)
+            t.tr()
+            
+            
+            e = gui.Button("Cancel")
+            e.connect(gui.CLICK, self.close, None)
+            t.td(e, colspan=2)
+
+            e = gui.Button("Start")
+            e.connect(gui.CLICK, self.start_remote_game, None)
+            t.td(e, colspan=2)
+
+            gui.Dialog.__init__(self, title_lbl, t)
+
+        def start_remote_game(self, *args):
+            remote_host = self.w_remote_host.value.lstrip().rstrip()
+            try:
+                remote_port = int(self.w_remote_port.value.lstrip().rstrip())
+                if remote_port < 0: raise ValueError
+                
+            except ValueError:
+                class BadPortDialog(gui.Dialog):
+                    def __init__(self, *args):
+                        title = gui.Label("Port invalid")
+                        label = gui.Label("The port number is invalid")
+                        gui.Dialog.__init__(self, title, label)
+                bpd = BadPortDialog()
+                bpd.show()
+                return
+            self.runner.white_player = NetworkPlayer(WHITE,
+                                              server=remote_host,
+                                              port=remote_port)
+            self.runner.on_new_game()
+            self.close()
+
+        
     # UTILITY METHODS #########################################################
 
     def get_board_x(self):
