@@ -36,6 +36,48 @@ DIRECTIONS = [
     (-1, 1)   # northwest
 ]
 
+# I was seeing funky behavior with this generator when it was an instance
+# method on Board - self references seemed to behave weirdly - I pulled it
+# outside the class.
+def generate_valid_moves(b):
+    max_dist = max(b.width, b.height)
+    # Bizarrely, for amz in b.current_amazons doesn't seem to work here.
+    for j in range(len(b.current_amazons)):
+        amz = b.current_amazons[j]
+        i = 0
+        # For each amazon,
+        for amz_dir in DIRECTIONS:
+            # For each amazon direction,
+            for amz_dist in range(1, max_dist):
+                # For each amazon distance,
+                amz_target_x = amz.x + (amz_dir[0] * amz_dist)
+                amz_target_y = amz.y + (amz_dir[1] * amz_dist)
+                if (amz_target_x < 0 or amz_target_x >= b.width or
+                    amz_target_y < 0 or amz_target_y >= b.height or
+                    b[amz_target_x][amz_target_y] != EMPTY):
+                    # Outside the board or hit something -
+                    # done with this direction.
+                    break
+                for arr_dir in DIRECTIONS:
+                    # For each arrow direction,
+                    for arr_dist in range(1, max_dist):
+                        # For each arrow distance,
+                        arr_x = amz_target_x + (arr_dir[0] * arr_dist)
+                        arr_y = amz_target_y + (arr_dir[1] * arr_dist)
+                        if (arr_x < 0 or arr_x >= b.width or
+                            arr_y < 0 or arr_y >= b.height or
+                            (b[arr_x][arr_y] != EMPTY and
+                                not (arr_x == amz.x and arr_y == amz.y))):
+                            # Outside the board or hit something
+                            # besides the old position of the moving
+                            # amazon - done with this direction.
+                            break
+                        # Return the move.
+                        i += 1
+                        yield Move(amz,
+                            (amz_target_x, amz_target_y),
+                            (arr_x, arr_y))
+
 class Board(object):
     """
     A Game of the Amazons board.  Encapsulates the state of the board at a
@@ -50,7 +92,8 @@ class Board(object):
 
     def __init__(self, width=10, height=10, white_amazons="a4, d1, g1, j4",
                  black_amazons="a7, d10, g10, j7", arrows="", to_move=WHITE,
-                 prev_board=None, move=None):
+                 prev_board=None, move=None, is_debug=False):
+        self.is_debug = is_debug
         if (prev_board == None and move == None):
             # Regular constructor.
             self.width = width
@@ -183,7 +226,7 @@ class Board(object):
         query in other methods to see if we need to generate them or not.
         """
         if not hasattr(self, '_valid_moves'):
-            self._valid_moves = [mv for mv in self.enumerate_valid_moves(self)]
+            self._valid_moves = [mv for mv in generate_valid_moves(self)]
         return self._valid_moves
 
     def get_valid_opponent_moves(self):
@@ -194,131 +237,9 @@ class Board(object):
         """
         if not hasattr(self, '_valid_opponent_moves'):
             inv = self.get_inverse()
-            self._valid_opponent_moves = [mv for mv in
-                inv.enumerate_valid_moves(inv)]
+            self._valid_opponent_moves = [mv for mv in 
+                generate_valid_moves(inv)]
         return self._valid_opponent_moves
-
-    class enumerate_valid_moves(object):
-        """Generator for a list of all valid moves on this board."""
-
-        def __init__(self, board):
-            self.board = board
-
-            # Index in white or black amazons list of amazon whose moves are
-            # currently being enumerated.
-            self.curr_amazon = 0
-
-            # Current direction of moves being enumerated, from 0 = north to
-            # 7 = northwest
-            self.curr_amazon_dir = 0
-
-            # Current distance of move being enumerated in squares from amazon.
-            self.curr_amazon_dist = 1
-
-            # Current direction and distance of arrow shot being enumerated.
-            self.curr_arrow_dir = 0
-            self.curr_arrow_dist = 1
-
-        def __iter__(self):
-            return self
-
-        # Python 3 compatibility.
-        def __next__(self):
-            return self.next()
-
-        def next(self):
-            # Iterate through each amazon -> direction -> distance ->
-            # arrow direction -> arrow distance.  (That order will appear in
-            # reverse in this function because we need to check the cases from
-            # the inmost to the outmost.)
-            mv = None
-            b = self.board
-            if len(b.current_amazons) < 1:
-                raise StopIteration() # Special case: No amazons on the board.
-            while (True):
-                amz = b.current_amazons[self.curr_amazon]
-                amz_dir = DIRECTIONS[self.curr_amazon_dir]
-                amz_dist = self.curr_amazon_dist
-                arr_dir = DIRECTIONS[self.curr_arrow_dir]
-                arr_dist = self.curr_arrow_dist
-
-                amz_target = None
-                try:
-                    amz_target = Square(amz.x + (amz_dir[0] * amz_dist),
-                                        amz.y + (amz_dir[1] * amz_dist))
-                    if b[amz_target.x][amz_target.y] != EMPTY:
-                        amz_target = None
-                except:
-                    amz_target = None
-
-                next_amz_target = None
-                try:
-                    next_amz_target = Square(amz.x + (amz_dir[0] * (amz_dist + 1)),
-                                             amz.y + (amz_dir[1] * (amz_dist + 1)))
-                    if b[next_amz_target.x][next_amz_target.y] != EMPTY:
-                        next_amz_target = None
-                except:
-                    next_amz_target = None
-
-                arr = None
-                try:
-                    arr = Square(amz_target.x + (arr_dir[0] * arr_dist),
-                                 amz_target.y + (arr_dir[1] * arr_dist))
-                    if b[arr.x][arr.y] != EMPTY and arr != amz:
-                        arr = None
-                except:
-                    arr = None
-
-                # Is the path clear from the target square to the arrow square?
-                # If so, we found a valid move:
-                if (amz_target != None and arr != None and
-                    b.is_path_clear(amz_target, arr, ignore=amz)):
-                    # Increment the arrow distance and return this move.
-                    self.curr_arrow_dist = self.curr_arrow_dist + 1
-                    return Move(amz, amz_target, arr)
-                # If not, this arrow distance is done.
-                # Check the next arrow direction - is there another?
-                elif self.curr_arrow_dir < 7:
-                    # If so, reset arrow distance.
-                    self.curr_arrow_dist = 1
-                    # Continue with the next arrow direction.
-                    self.curr_arrow_dir = self.curr_arrow_dir + 1
-                    continue
-                # If not, this target square is done.
-                # Is the path clear from the amazon to the next target square?
-                elif (next_amz_target != None and
-                      b.is_path_clear(amz, next_amz_target)):
-                    # If so reset arrow distance and direction.
-                    self.curr_arrow_dist = 1
-                    self.curr_arrow_dir = 0
-                    # Continue with the next target square.
-                    self.curr_amazon_dist = self.curr_amazon_dist + 1
-                    continue
-                # If not, this amazon direction is done.
-                # Check the next amazon direction - is there another?
-                elif self.curr_amazon_dir < 7:
-                    # If so, reset arrow distance, direction, and amazon dist.
-                    self.curr_arrow_dist = 1
-                    self.curr_arrow_dir = 0
-                    self.curr_amazon_dist = 1
-                    # Continue with the next amazon direction.
-                    self.curr_amazon_dir = self.curr_amazon_dir + 1
-                    continue
-                # If not, this amazon is done.
-                # Is there another amazon?
-                elif self.curr_amazon < (len(b.current_amazons) - 1):
-                    # If so, reset arrow dist and dir, and amazon dist and dir.
-                    self.curr_arrow_dist = 1
-                    self.curr_arrow_dir = 0
-                    self.curr_amazon_dist = 1
-                    self.curr_amazon_dir = 0
-                    # Continue with the next amazon.
-                    self.curr_amazon = self.curr_amazon + 1
-                    continue
-                else:
-                    # If not, we've enumerated all moves.
-                    # Turn off the generator.
-                    raise StopIteration()
 
     def __getitem__(self, index):
         return self.get_board()[index]

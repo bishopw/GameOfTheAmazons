@@ -3,6 +3,7 @@
 from multiprocessing import Pool, TimeoutError, freeze_support, current_process
 from random import randint
 from time import sleep, time
+from gc import collect
 
 from player import Player
 from board import Board
@@ -68,82 +69,13 @@ def negamax(board, depth, alpha, beta, color, nodes_evaluated):
     for move in moves:
         child_board = board.move(move)
         val = -1.0 * negamax(child_board, depth - 1, -beta, -alpha, -color)
+        del child_board
+        collect()
         best_value = max(best_value, val)
         alpha = max(alpha, val)
         if alpha >= beta:
             break
     return best_value
-
-def old_decide(*args):
-    """Main function for the thinker process to run."""
-    board = args[0]
-    clock = args[1]
-
-    # Decision statistics.
-    target_time = None
-    total_time = 0
-    last_depth_time = 0
-    target_depth = 0
-    depth = 0
-    nodes_evaluated = [0]
-
-    # Perform a deepening recursive search through the move tree until we
-    # run out of time or hit our target depth.
-    start_time = time()
-    best_value = float("-inf")
-    best_move = 'resign'
-    moves = board.get_valid_moves()
-    children = [board.move(move) for move in moves]
-    while depth <= target_depth:
-        print 'evaluating ' + str(len(moves)) + ' moves...'
-        i = 0
-        # Evaluate each root move at this depth.
-        total_move_values = 0
-        curr_best_value = (float("-inf") if board.to_move == 'white' 
-                           else float("inf"))
-        curr_best_move = 'resign'
-        for child in children:
-            val = None
-            if board.to_move == 'white':
-                val = negamax(child, depth, float("-inf"), float("inf"), WHITE,
-                    nodes_evaluated)
-                # Maximize highest possible evaluation.
-                if (val > curr_best_value):
-                    curr_best_value = val
-                    curr_best_move = move
-            else:
-                val = (-1 *
-                    negamax(child, depth, float("-inf"), float("inf"), BLACK,
-                        nodes_evaluated))
-                # Minimize highest possible evaluation.
-                if (val < curr_best_value):
-                    curr_best_value = val
-                    curr_best_move = move
-            total_move_values += val
-            i += 1
-            print '  ' + str(i) + '...'
-        best_value = curr_best_value
-        best_move = curr_best_move
-        curr_time = time()
-        last_depth_time = curr_time - start_time
-        start_time = curr_time
-        total_time += last_depth_time
-        depth += 1
-        if total_time > target_time:
-            break # We ran out of time.  Quit early.
-
-    print board.to_move.capitalize() + ' moves ' + str(best_move) + '.'
-    print ('       target time: ' + str(target_time) +
-        (' sec' if type(target_time) == int else ''))
-    print '       actual time: ' + str(int(total_time)) + ' sec'
-    print '      target depth: ' + str(target_depth + 1)
-    print '      actual depth: ' + str(depth)
-    print '    possible moves: ' + str(len(moves))
-    print '        move value: ' + str(best_value)
-    print '   avg. move value: ' + str(total_move_values / len(moves))
-    print '  boards evaluated: ' + str(nodes_evaluated[0])
-
-    return best_move
 
 def decide(input_list):
     """
@@ -201,17 +133,19 @@ def decide(input_list):
             if (val < curr_best_value):
                 curr_best_value = val
                 curr_best_move = move
+        del child
+        collect()
         total_move_values += val
         print "Process %s: Move %d: %s: mobility score %f." % (current_process().name, i, str(move), val)
 
     curr_time = time()
     total_time = curr_time - start_time
 
-    print "Process %s: Best move was '%s' with value %f." % (current_process().name, str(curr_best_move), curr_best_value)
-    print '              time: ' + str(total_time) + ' sec'
-    print '   moves evaluated: ' + str(chunk_size)
-    print '    avg_move_value: ' + str(total_move_values / float(chunk_size))
-    print '  boards_evaluated: ' + str(nodes_evaluated[0])
+    # print "Process %s: Best move was '%s' with value %f." % (current_process().name, str(curr_best_move), curr_best_value)
+    # print '              time: ' + str(total_time) + ' sec'
+    # print '   moves evaluated: ' + str(chunk_size)
+    # print '    avg_move_value: ' + str(total_move_values / float(chunk_size))
+    # print '  boards_evaluated: ' + str(nodes_evaluated[0])
 
     return {
         "best_move": curr_best_move,
@@ -282,8 +216,8 @@ class AIPlayer(Player):
         Return the move decided on after the last call to start_thinking(),
         or return None if the next move is not decided yet.
         """
-        if self.results == None:
-            return self.results
+        #if self.results == None:
+        #    return self.results
         try:
             # Collect worker process results.
             while self.results_to_collect > 0:

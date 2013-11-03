@@ -234,6 +234,10 @@ class PygameRunner(object):
                 if m != None:
                     self.game.move(m)
                     self.start_current_move()
+                    if self.game.is_over:
+                        print 'Board:'
+                        print str(self.game.board)
+                        print 'Valid moves: ' + str(self.game.board.get_valid_moves())
                     self.sounds['bounce'].play()
 
             self.render()
@@ -571,6 +575,14 @@ class PygameRunner(object):
             arr_x = BORDER_PX + (arr[0] * SQUARE_PX)
             arr_y = board_h - (BORDER_PX + SQUARE_PX + (arr[1] * SQUARE_PX))
             self.blit_clipped(arr_surf, board_x + arr_x, board_y + arr_y)
+
+        # Draw last move.
+        last_surf = self.surfaces['last_move']
+        last_mv = self.game.last_move
+        if last_mv != None:
+            for sq in last_mv:
+                last_x, last_y = self.get_screen_pos(sq.x, sq.y)
+                self.blit_clipped(last_surf, last_x, last_y)
 
         # Draw message.
         self.render_text_centered(self.msg, (self.screen_w / 2), 10)
