@@ -8,7 +8,8 @@ from square import Square
 from move import Move
 from board import Board,BLACK,WHITE
 from game import Game
-from player import Player,NetworkPlayer,AIPlayer
+from player import Player,NetworkPlayer
+from ai_player import AIPlayer
 from clock import Clock
 
 # Useful constants.
@@ -52,18 +53,18 @@ class PygameRunner(object):
         self.app_settings = {
             'w_player': 'human',
             'w_difficulty': 5,
-            'w_use_fixed_time': True,
+            'w_use_fixed_time': False,
             'w_minutes': 20,
             'w_seconds': 0,
-            'w_use_byoyomi': True,
+            'w_use_byoyomi': False,
             'w_byoyomi_periods': 5,
             'w_byoyomi_seconds': 30,
             'b_player': 'ai',
             'b_difficulty': 5,
-            'b_use_fixed_time': True,
+            'b_use_fixed_time': False,
             'b_minutes': 20,
             'b_seconds': 0,
-            'b_use_byoyomi': True,
+            'b_use_byoyomi': False,
             'b_byoyomi_periods': 5,
             'b_byoyomi_seconds': 30,
             'territory_marking': TERRITORY_MARK_NONE,
@@ -224,6 +225,17 @@ class PygameRunner(object):
                     self.start_current_move()
                     self.sounds['bounce'].play()
 
+            if self.phase == self.PHASE_WAIT_FOR_AI:
+                # Check if the AI is ready to move.
+                board = self.game.board
+                curr_player = (self.white_player if (board.to_move == "white")
+                       else self.black_player)
+                m = curr_player.next_move()
+                if m != None:
+                    self.game.move(m)
+                    self.start_current_move()
+                    self.sounds['bounce'].play()
+
             self.render()
 
             self.process_inputs()
@@ -266,14 +278,21 @@ class PygameRunner(object):
                                          self.PHASE_SHOOT_ARROW):
                         # Reset current move.
                         self.start_current_move()
+                    else:
+                        pygame.event.post(pygame.event.Event(QUIT))
 
     def on_new_game(self):
         gs = self.game_settings
         s = self.app_settings
 
-        # Instantiate game.
+        # Instantiate game and players.
         self.game = Game(gs['width'], gs['height'], gs['white_amazons'],
                          gs['black_amazons'], gs['arrows'], gs['to_move'])
+
+        self.white_player = (Player(WHITE) if s['w_player'] == 'human' else
+                             AIPlayer(WHITE, difficulty = s['w_difficulty']))
+        self.black_player = (Player(BLACK) if s['b_player'] == 'human' else
+                             AIPlayer(BLACK, difficulty = s['b_difficulty']))
 
         # Instantiate clocks.
         w_use_clock = s['w_use_fixed_time'] or s['w_use_byoyomi']
@@ -363,6 +382,9 @@ class PygameRunner(object):
                        else self.black_player)
         if isinstance(curr_player, AIPlayer):
             self.set_phase(self.PHASE_WAIT_FOR_AI)
+            self.switch_clock()
+            self.sounds['bounce'].play()
+            curr_player.start_thinking(self.game.board)
         elif isinstance(curr_player, NetworkPlayer):
             self.set_phase(self.PHASE_WAIT_FOR_REMOTE)
             try:
@@ -374,7 +396,11 @@ class PygameRunner(object):
         else:
             self.set_phase(self.PHASE_PICK_AMAZON)
 
-        # Hit the game clock switch.
+        self.switch_clock()
+
+    def switch_clock(self):
+        """Hit the game clock switch."""
+        board = self.game.board
         if (board.to_move == "white"):
             if self.w_clock != None: self.w_clock.start()
             if self.b_clock != None: self.b_clock.stop()
@@ -1234,10 +1260,10 @@ class PygameRunner(object):
                 bpd = BadPortDialog()
                 bpd.show()
                 return
+            self.runner.on_new_game()
             self.runner.white_player = NetworkPlayer(WHITE,
                                               server=remote_host,
                                               port=remote_port)
-            self.runner.on_new_game()
             self.close()
 
         

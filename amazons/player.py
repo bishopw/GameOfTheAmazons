@@ -3,7 +3,6 @@
 from board import WHITE, BLACK
 from invalid_move_error import InvalidMoveError
 from move import Move
-from random import randint
 from socket import *
 import pickle
 
@@ -55,19 +54,7 @@ class Player(object):
 
 	def next_move_gui(self, game):
 		raise Exception("not implemented")
-	
-	
-class AIPlayer(Player):
-	def __init__(self, color, **kwargs):
-		super(AIPlayer, self).__init__(color)
-		
-	def __str__(self):
-		return "Computer AI"
 
-	def next_move(self, game):
-		"""Temporary stand-in for AI opponent.  Pick a random valid move."""
-		valid_moves = game.board.get_valid_moves()
-		return valid_moves[randint(0, len(valid_moves) - 1)]
 
 class NetworkPlayer(Player):
 	def __init__(self, color, text_ui=False, **kwargs):

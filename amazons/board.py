@@ -186,6 +186,18 @@ class Board(object):
             self._valid_moves = [mv for mv in self.enumerate_valid_moves(self)]
         return self._valid_moves
 
+    def get_valid_opponent_moves(self):
+        """
+        Memoizes and/or returns the list of valid moves the opponent would have
+        if the board were in its same current position, but it was the
+        opponent's turn.
+        """
+        if not hasattr(self, '_valid_opponent_moves'):
+            inv = self.get_inverse()
+            self._valid_opponent_moves = [mv for mv in
+                inv.enumerate_valid_moves(inv)]
+        return self._valid_opponent_moves
+
     class enumerate_valid_moves(object):
         """Generator for a list of all valid moves on this board."""
 
@@ -434,6 +446,15 @@ class Board(object):
         is raised.
         """
         return Board(prev_board=self, move=move)
+
+    def get_inverse(self):
+        """
+        Returns a board in the same position, but with the to_move player
+        reversed.
+        """
+        b = Board(prev_board=self)
+        b._to_move = WHITE if b.to_move == 'black' else BLACK
+        return b
 
 # Export board index constants as properties of the Board class.
 Board.EMPTY = EMPTY
