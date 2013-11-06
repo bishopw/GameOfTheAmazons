@@ -11,6 +11,8 @@ from move import Move
 from square import Square
 from squares import Squares
 
+# from memory_profiler import profile
+
 WHITE = 1
 BLACK = -1
 
@@ -70,13 +72,13 @@ def negamax(board, depth, alpha, beta, color, nodes_evaluated):
         child_board = board.move(move)
         val = -1.0 * negamax(child_board, depth - 1, -beta, -alpha, -color)
         del child_board
-        collect()
         best_value = max(best_value, val)
         alpha = max(alpha, val)
         if alpha >= beta:
             break
     return best_value
 
+#@profile
 def decide(input_list):
     """
     Main function for a thinker process to run.
@@ -134,9 +136,8 @@ def decide(input_list):
                 curr_best_value = val
                 curr_best_move = move
         del child
-        collect()
         total_move_values += val
-        print "Process %s: Move %d: %s: mobility score %f." % (current_process().name, i, str(move), val)
+        # print "Process %s: Move %d: %s: mobility score %f." % (current_process().name, i, str(move), val)
 
     curr_time = time()
     total_time = curr_time - start_time
@@ -180,7 +181,18 @@ class AIPlayer(Player):
         Split the board evaluation task into PROCESS_COUNT chunks and delegate
         it to the worker processes.
         """
-        moves = self.board.get_valid_moves()
+        sample_size_target = 200
+        all_moves = self.board.get_valid_moves()
+        # Take a sampling of the moves to bring them down to below 400.
+        moves = all_moves
+        if len(all_moves) > sample_size_target:
+            moves = []
+            sample_every = int(max(1, int(float(len(all_moves)) / float(sample_size_target)) + 1))
+            i = 0
+            for mv in all_moves:
+                if i % sample_every == 0:
+                    moves.append(mv)
+                i += 1
         move_count = len(moves)
         chunk_size = int(move_count / PROCESS_COUNT) + 1
         abort_time = None
@@ -189,9 +201,12 @@ class AIPlayer(Player):
         self.output_tasks = []
         self.results_to_collect = PROCESS_COUNT
         print ('Main Process: Launching ' + str(PROCESS_COUNT) +
-            ' workers to process ' + str(move_count) + ' moves at depth ' +
+            ' workers to process ' + str(move_count) + ' out of ' + str(len(all_moves)) + ' moves at depth ' +
             str(depth) + '.')
         self.results = pool.imap(decide, input_tasks)
+        # self.sync_output = []
+        # for task in input_tasks:
+        #     self.sync_output.append(decide(task))
 
     def start_thinking(self, board, clock=None):
         """Start considering the next move for the specified game."""
@@ -216,13 +231,15 @@ class AIPlayer(Player):
         Return the move decided on after the last call to start_thinking(),
         or return None if the next move is not decided yet.
         """
-        #if self.results == None:
-        #    return self.results
+        if self.results == None:
+           return self.results
         try:
             # Collect worker process results.
             while self.results_to_collect > 0:
                 self.output_tasks.append(self.results.next(timeout=0.05))
                 self.results_to_collect -= 1
+
+            # self.output_tasks = self.sync_output
 
             print 'Main Process: All worker process results gathered.'
 
