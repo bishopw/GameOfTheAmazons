@@ -771,14 +771,14 @@ class PygameRunner(object):
             self.td(e)
             self.tr()
             rules_d = PygameRunner.RulesDialog()
-            class OptionsButton(gui.Button):
+            class RulesButton(gui.Button):
                 def __init__(self, **kwargs):
                     kwargs['value'] = 'Rules'
                     gui.Button.__init__(self, **kwargs)
                     self.connect(gui.CLICK,self.on_click,None)
                 def on_click(self, *args):
                     rules_d.open()
-            e = OptionsButton()
+            e = RulesButton()
             self.td(e)
             self.tr()
             class OptionsButton(gui.Button):
@@ -821,6 +821,17 @@ class PygameRunner(object):
 
             self.undo_button = gui.Button('Undo')
             self.undo_button.is_visible = False
+
+            rules_d = PygameRunner.RulesDialog()
+            class RulesButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'Rules'
+                    gui.Button.__init__(self, **kwargs)
+                    self.is_visible = False
+                    self.connect(gui.CLICK,self.on_click,None)
+                def on_click(self, *args):
+                    rules_d.open()
+            self.rules_button = RulesButton()
 
             self.continue_button = gui.Button('Continue')
             self.continue_button.is_visible = False
@@ -909,16 +920,19 @@ class PygameRunner(object):
             PR = PygameRunner
 
             if (phase in (PR.PHASE_WAIT_FOR_AI, PR.PHASE_WAIT_FOR_REMOTE)):
+                self.add_button(t, self.rules_button)
                 self.add_button(t, self.options_button)
                 self.add_button(t, self.title_menu_button)
                 self.add_button(t, self.quit_button)
             elif (phase in (PR.PHASE_PICK_AMAZON, PR.PHASE_PLACE_AMAZON,
                             PR.PHASE_SHOOT_ARROW)):
                 self.add_button(t, self.resign_button)
+                self.add_button(t, self.rules_button)
                 self.add_button(t, self.options_button)
                 self.add_button(t, self.title_menu_button)
                 self.add_button(t, self.quit_button)
             elif (phase == PR.PHASE_GAME_OVER):
+                self.add_button(t, self.rules_button)
                 self.add_button(t, self.options_button)
                 self.add_button(t, self.title_menu_button)
                 self.add_button(t, self.quit_button)
@@ -1251,6 +1265,7 @@ class PygameRunner(object):
             title_lbl = gui.Label('Game of the Amazons Rules')
 
             t = gui.Table()
+            l = gui.List(500, 260)
 
             rules = ('The Game of the Amazons is played on a 10x10 square board.',
                 'Two players, Black and White, take turns moving one of four.',
@@ -1265,10 +1280,14 @@ class PygameRunner(object):
                 '(not being totally blocked in) wins the game.')
 
             for rule in rules:
-                t.tr()
-                t.add(gui.Label(rule, width=400))
+                l.add(rule)
+
+            l.set_horizontal_scroll(0)
+            l.set_vertical_scroll(0)
 
             # Confirm button.
+            t.tr()
+            t.td(l)
             t.tr()
             e = gui.Button('OK')
             e.connect(gui.CLICK, self.close, None)
