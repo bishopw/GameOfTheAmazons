@@ -1367,6 +1367,7 @@ class PygameRunner(object):
             remote_port = int(self.w_remote_port.value.lstrip().rstrip())
             self.runner.on_new_game()
             self.runner.black_player = GameHostPlayer(BLACK, port=remote_port)
+            self.close()
             
     # UTILITY METHODS #########################################################
 
