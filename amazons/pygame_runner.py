@@ -755,7 +755,7 @@ class PygameRunner(object):
                         
             e = ConnectRemoteButton()
             self.td(e)
-            self.tr()
+            self.tr()df
             e = gui.Button('Rules')
             self.td(e)
             self.tr()
@@ -1224,6 +1224,9 @@ class PygameRunner(object):
         def on_confirm(self, *args):
             self.close()
             self.confirm_func()
+
+    class RulesDialog(gui.Dialog):
+        pass
 
     class ConnectToRemoteDialog(gui.Dialog):
         def __init__(self, runner):
