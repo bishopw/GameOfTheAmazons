@@ -769,10 +769,17 @@ class PygameRunner(object):
                         
             e = ConnectRemoteButton()
             self.td(e)
-            self.tr()df
-            e = gui.Button('Rules')
-            self.td(e)
             self.tr()
+            rules_d = PygameRunner.RulesDialog()
+            class OptionsButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'Rules'
+                    gui.Button.__init__(self, **kwargs)
+                    self.connect(gui.CLICK,self.on_click,None)
+                def on_click(self, *args):
+                    rules_d.open()
+            e = OptionsButton()
+            self.td(e)
             self.tr()
             class OptionsButton(gui.Button):
                 def __init__(self, **kwargs):
@@ -1240,7 +1247,34 @@ class PygameRunner(object):
             self.confirm_func()
 
     class RulesDialog(gui.Dialog):
-        pass
+        def __init__(self):
+            title_lbl = gui.Label('Game of the Amazons Rules')
+
+            t = gui.Table()
+
+            rules = ('The Game of the Amazons is played on a 10x10 square board.',
+                'Two players, Black and White, take turns moving one of four.',
+                'amazons of their color, initially placed at a4, d1, g1, and j4',
+                'for White, and a7, d10, g10, and j7 for Black.  The amazons',
+                'move in one of the eight directions as many squares as desired',
+                '(like a chess queen), and then shoot an arrow from that square,',
+                'also in any of the eight directions for as many squares as desired.',
+                'The arrow stays permanently on its target square for the rest',
+                'of the game.  Arrows on the board block the movement of amazons',
+                'and other arrows.  The last player to be able to move an amazon',
+                '(not being totally blocked in) wins the game.')
+
+            for rule in rules:
+                t.tr()
+                t.add(gui.Label(rule, width=400))
+
+            # Confirm button.
+            t.tr()
+            e = gui.Button('OK')
+            e.connect(gui.CLICK, self.close, None)
+            t.td(e)
+
+            gui.Dialog.__init__(self, title_lbl, t)
 
     class ConnectToRemoteDialog(gui.Dialog):
         def __init__(self, runner):
