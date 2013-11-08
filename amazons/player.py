@@ -66,13 +66,15 @@ class NetworkPlayer(Player):
 			self.port = kwargs['port']
 		else:
 			self.port = 60987
-		self.sock = socket(AF_INET, SOCK_DGRAM)
+		print "asking for new game"
+		self.sock = socket(AF_INET, SOCK_STREAM)
 		self.sock.connect((self.server, self.port))
 		self.sock.send("NEW_GAME:%s:%s" % (self.server, self.port))
-		dat = self.sock.recv(1024)
-		if not dat == "ACK:NEW_GAME":
-			raise Exception("Could not connect to remote player")
+		#dat = self.sock.recv(1024)
+		#if not dat == "ACK:NEW_GAME":
+		#raise Exception("Could not connect to remote player")
 		self.sock.close()
+		print "new game started"
 		
 	def __str__(self):
 		return "Network player"
@@ -80,7 +82,9 @@ class NetworkPlayer(Player):
 	def next_move(self, game):
 		self.sock = socket(AF_INET, SOCK_STREAM)
 		self.sock.connect((self.server, self.port))
+		
 		self.sock.send("NEXT_MOVE")
+		print "waiting for next move"
 		move = self.sock.recv(4096)
 		print "Network player moves: %s" % move
 		return Move(move)
@@ -91,24 +95,38 @@ class GameHostPlayer(Player):
 			self.port = kwargs['port']
 		else:
 			self.port = 60987
-		self.sock = socket(AF_INET, SOCK_DGRAM)
-		self.sock.connect(('localhost',self.port))
-		dat = self.sock.recv(1024)
+		self.sock = socket(AF_INET, SOCK_STREAM)
+		print "listening for game start"
+		self.sock.bind(('localhost',self.port))
+		self.sock.listen(5)
+		self.conn, self.addr = self.sock.accept()
+		dat = self.conn.recv(1024)
+		print "data recv: %s" % dat
+		self.conn.close()
 		self.sock.close()
 		if dat.startswith("NEW_GAME"):
 			_,self.opponent_host,self.opponent_port = dat.split(":")
-			sock = socket(AF_INET, SOCK_DGRAM)
-			sock.connect((self.opponent_host, self.opponent_port))
-			self.sock.send("ACK:NEW_GAME")
+			sock = socket(AF_INET, SOCK_STREAM)
+			sock.bind((self.opponent_host, int(self.opponent_port)))
+			sock.listen(5)
+			conn, _ = sock.accept()
+			
+			conn.send("ACK:NEW_GAME")
+			print "host acknowledges new game"
+			conn.close()
+			sock.close()
 		else:
 			raise Exception("Got bad message: %s" % dat)
 		super(GameHostPlayer, self).__init__(color)
 	
 	def send_my_move(self, move):
-		sock = socket(AF_INET, SOCK_DGRAM)
-		sock.connet((self.opponent_host, self.opponent_port))
+		print "sending host move"
+		sock = socket(AF_INET, SOCK_STREAM)
+		sock.connect((self.opponent_host, self.opponent_port))
 		dat = sock.recv(1024)
+		print "recv: %s" % dat
 		if dat == "NEXT_MOVE":
 			sock.send(move)
+		print "move sent"
 		sock.close()
 		
