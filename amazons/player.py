@@ -4,7 +4,6 @@ from board import WHITE, BLACK
 from invalid_move_error import InvalidMoveError
 from move import Move
 from socket import *
-import pickle
 
 class ResignGame(Exception):
 	def __init__(self):
@@ -67,10 +66,9 @@ class NetworkPlayer(Player):
 			self.port = kwargs['port']
 		else:
 			self.port = 60987
-		self.sock = socket(AF_INET, SOCK_STREAM)
+		self.sock = socket(AF_INET, SOCK_DGRAM)
 		self.sock.connect((self.server, self.port))
-		self.sock.send("NEW_GAME")
-		self.sock.settimeout(5.0)
+		self.sock.send("NEW_GAME:%s:%s" % (self.server, self.port))
 		dat = self.sock.recv(1024)
 		if not dat == "ACK:NEW_GAME":
 			raise Exception("Could not connect to remote player")
@@ -82,7 +80,35 @@ class NetworkPlayer(Player):
 	def next_move(self, game):
 		self.sock = socket(AF_INET, SOCK_STREAM)
 		self.sock.connect((self.server, self.port))
-		self.sock.send("/".join([str(x) for x in game.board.get_valid_moves()]))
+		self.sock.send("NEXT_MOVE")
 		move = self.sock.recv(4096)
 		print "Network player moves: %s" % move
 		return Move(move)
+	
+class GameHostPlayer(Player):
+	def __init__(self, color, text_ui=False, **kwargs):
+		if 'port' in kwargs:
+			self.port = kwargs['port']
+		else:
+			self.port = 60987
+		self.sock = socket(AF_INET, SOCK_DGRAM)
+		self.sock.connect(('localhost',self.port))
+		dat = self.sock.recv(1024)
+		self.sock.close()
+		if dat.startswith("NEW_GAME"):
+			_,self.opponent_host,self.opponent_port = dat.split(":")
+			sock = socket(AF_INET, SOCK_DGRAM)
+			sock.connect((self.opponent_host, self.opponent_port))
+			self.sock.send("ACK:NEW_GAME")
+		else:
+			raise Exception("Got bad message: %s" % dat)
+		super(GameHostPlayer, self).__init__(color)
+	
+	def send_my_move(self, move):
+		sock = socket(AF_INET, SOCK_DGRAM)
+		sock.connet((self.opponent_host, self.opponent_port))
+		dat = sock.recv(1024)
+		if dat == "NEXT_MOVE":
+			sock.send(move)
+		sock.close()
+		

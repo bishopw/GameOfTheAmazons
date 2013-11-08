@@ -8,9 +8,10 @@ from square import Square
 from move import Move
 from board import Board,BLACK,WHITE
 from game import Game
-from player import Player,NetworkPlayer
+from player import Player,NetworkPlayer,GameHostPlayer
 from ai_player import AIPlayer
 from clock import Clock
+import socket
 
 # Useful constants.
 SQUARE_PX = 60 # Size of a board square in pixels.
@@ -472,6 +473,10 @@ class PygameRunner(object):
             mv = Move(self.amazon_in_hand, self.amazon_target, arrow_target)
             if board.check_is_move_valid(mv):
                 self.game.move(mv)
+                curr_player = (self.white_player if (board.to_move == "white")
+                       else self.black_player)
+                if hasattr(curr_player,'send_my_move'):
+                    curr_player.send_my_move(mv)
                 self.start_current_move()
                 self.sounds['bounce'].play()
                 return
@@ -741,7 +746,16 @@ class PygameRunner(object):
             e = NewGameButton()
             self.td(e)
             self.tr()
-            e = gui.Button('New Game - Wait for Remote Player')
+            class HostRemoteButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value'] = 'New Game - Wait for Remote Player'
+                    gui.Button.__init__(self, **kwargs)
+                    self.connect(gui.CLICK, self.on_click, None)
+                def on_click(self, *args):
+                    host_d = PygameRunner.HostRemoteDialog(runner)
+                    host_d.open()
+            e = HostRemoteButton()
+          
             self.td(e)
             self.tr()
             class ConnectRemoteButton(gui.Button):
@@ -1273,7 +1287,7 @@ class PygameRunner(object):
                         label = gui.Label("The port number is invalid")
                         gui.Dialog.__init__(self, title, label)
                 bpd = BadPortDialog()
-                bpd.show()
+                bpd.open()
                 return
             self.runner.on_new_game()
             self.runner.white_player = NetworkPlayer(WHITE,
@@ -1281,7 +1295,45 @@ class PygameRunner(object):
                                               port=remote_port)
             self.close()
 
-        
+    class HostRemoteDialog(gui.Dialog):
+        def __init__(self, runner):
+            self.runner = runner
+            title_lbl = gui.Label("Host a remote player")
+
+            t = gui.Table()
+
+            t.tr()
+            try:
+                addr = socket.gethostbyname(socket.getfqdn())
+            except socket.gaierror:
+                addr = "unknown"
+            t.add(gui.Label("Hosting on hostname/IP  %s" % addr )
+                  ,colspan=2)
+
+            t.tr()
+            t.add(gui.Label("Use port  "),colspan=2)
+            self.w_remote_port = gui.TextArea(value="60987",
+                                           size=2, width=100, height=20,
+                                           name='w_remote_port')
+            t.add(self.w_remote_port)
+            t.tr()
+            
+            
+            e = gui.Button("Cancel")
+            e.connect(gui.CLICK, self.close, None)
+            t.td(e, colspan=2)
+
+            e = gui.Button("Start")
+            e.connect(gui.CLICK, self.start_remote_game, None)
+            t.td(e, colspan=2)
+
+            gui.Dialog.__init__(self, title_lbl, t)
+
+        def start_remote_game(self, *args):
+            remote_port = int(self.w_remote_port.value.lstrip().rstrip())
+            self.runner.on_new_game()
+            self.runner.black_player = GameHostPlayer(BLACK, port=remote_port)
+            
     # UTILITY METHODS #########################################################
 
     def get_board_x(self):
