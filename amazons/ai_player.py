@@ -67,11 +67,11 @@ def negamax(board, depth, alpha, beta, color, nodes_evaluated):
         nodes_evaluated[0] = nodes_evaluated[0] + 1
         return float(color) * evaluate(board)
     best_value = float("-inf")
-    moves = board.get_valid_moves()
+    moves = list(board.get_valid_moves())
     for move in moves:
-        child_board = board.move(move)
-        val = -1.0 * negamax(child_board, depth - 1, -beta, -alpha, -color)
-        del child_board
+        board.move_in_place(move)
+        val = -1.0 * negamax(board, depth - 1, -beta, -alpha, -color)
+        board.undo_move_in_place(move)
         best_value = max(best_value, val)
         alpha = max(alpha, val)
         if alpha >= beta:
@@ -94,7 +94,7 @@ def decide(input_list):
     abort_time = input_list[5]
 
     if (starting_index >= move_count):
-        print 'Process %s: Aborting: no work to do.' % current_process().name
+        # print 'Process %s: Aborting: no work to do.' % current_process().name
         return None
     if (starting_index + chunk_size > move_count):
         chunk_size = move_count - starting_index
@@ -106,22 +106,24 @@ def decide(input_list):
     start_time = time()
     best_value = float("-inf")
     best_move = 'resign'
-    print 'Process %s: Evaluating moves %d through %d...' % (current_process().name, starting_index, starting_index + chunk_size - 1)
+    # print 'Process %s: Evaluating moves %d through %d...' % (current_process().name, starting_index, starting_index + chunk_size - 1)
 
     # Evaluate each root move at this depth.
     total_move_values = 0
     curr_best_value = (float("-inf") if board.to_move == 'white' 
                        else float("inf"))
     curr_best_move = 'resign'
+    tm = board.to_move
     for i in range(starting_index, starting_index + chunk_size):
         move = moves[i]
-        child = board.move(move)
+        board.move_in_place(move)
         if abort_time != None and time() > abort_time:
-            print 'Process %s: Aborting: out of time.' % current_process().name
+            # print 'Process %s: Aborting: out of time.' % current_process().name
+            board.undo_move_in_place(move)
             return None # Out of time.  Abort mission.
         val = None
-        if board.to_move == 'white':
-            val = negamax(child, depth, float("-inf"), float("inf"), WHITE,
+        if tm == 'white':
+            val = negamax(board, depth, float("-inf"), float("inf"), WHITE,
                 nodes_evaluated)
             # Maximize highest possible evaluation.
             if (val > curr_best_value):
@@ -129,15 +131,16 @@ def decide(input_list):
                 curr_best_move = move
         else:
             val = (-1.0 *
-                negamax(child, depth, float("-inf"), float("inf"), BLACK,
+                negamax(board, depth, float("-inf"), float("inf"), BLACK,
                     nodes_evaluated))
             # Minimize highest possible evaluation.
             if (val < curr_best_value):
                 curr_best_value = val
                 curr_best_move = move
-        del child
+        board.undo_move_in_place(move)
         total_move_values += val
         # print "Process %s: Move %d: %s: mobility score %f." % (current_process().name, i, str(move), val)
+        # print "  curr_best_move: %s, curr_best_value: %f" % (str(curr_best_move), curr_best_value)
 
     curr_time = time()
     total_time = curr_time - start_time
@@ -181,9 +184,9 @@ class AIPlayer(Player):
         Split the board evaluation task into PROCESS_COUNT chunks and delegate
         it to the worker processes.
         """
-        sample_size_target = 200
+        sample_size_target = 4 + int((float(self.difficulty - 1) / 9.0) * 1600.0)
         all_moves = self.board.get_valid_moves()
-        # Take a sampling of the moves to bring them down to below 400.
+
         moves = all_moves
         if len(all_moves) > sample_size_target:
             moves = []
@@ -200,9 +203,9 @@ class AIPlayer(Player):
             for i in range(PROCESS_COUNT)]
         self.output_tasks = []
         self.results_to_collect = PROCESS_COUNT
-        print ('Main Process: Launching ' + str(PROCESS_COUNT) +
-            ' workers to process ' + str(move_count) + ' out of ' + str(len(all_moves)) + ' moves at depth ' +
-            str(depth) + '.')
+        # print ('Main Process: Launching ' + str(PROCESS_COUNT) +
+        #     ' workers to process ' + str(move_count) + ' out of ' + str(len(all_moves)) + ' moves at depth ' +
+        #     str(depth) + '.')
         self.results = pool.imap(decide, input_tasks)
         # self.sync_output = []
         # for task in input_tasks:
@@ -241,8 +244,6 @@ class AIPlayer(Player):
 
             # self.output_tasks = self.sync_output
 
-            print 'Main Process: All worker process results gathered.'
-
             # Are we really done, or should we try for a deeper ply?
             self.last_completed_depth = self.current_depth
             if (self.current_depth < self.target_depth):
@@ -279,15 +280,23 @@ class AIPlayer(Player):
                 total_moves_evaluated += output['moves_evaluated']
             total_avg_move_value /= float(total_moves_evaluated)
 
+            # Resign if a win seems unlikely.
+            if self.board.to_move == 'white':
+                if best_move_value < 20.0:
+                    best_move = 'resign'
+            else:
+                if best_move_value > 80.0:
+                    best_move = 'resign'
+
             print self.board.to_move.capitalize() + ' moves ' + str(best_move) + '.'
             print '        move value: ' + str(best_move_value)
             print '    possible moves: ' + str(len(self.board.get_valid_moves()))
             print '   avg. move value: ' + str(total_avg_move_value)
-            print ('       target time: ' + str(self.target_time) +
-                (' sec' if type(self.target_time) == int else ''))
+            # print ('       target time: ' + str(self.target_time) +
+            #     (' sec' if type(self.target_time) == int else ''))
             print '       actual time: ' + str(int(total_time)) + ' sec'
-            print '      target depth: ' + str(self.target_depth)
-            print '      actual depth: ' + str(self.last_completed_depth)
+            # print '      target depth: ' + str(self.target_depth)
+            # print '      actual depth: ' + str(self.last_completed_depth)
             print '  boards evaluated: ' + str(total_boards_evaluated)
 
             # Reset members.

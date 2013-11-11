@@ -1,5 +1,3 @@
-from memoize import memoized
-
 from square import Square
 from squares import Squares
 from move import Move
@@ -165,6 +163,10 @@ class Board(object):
                                  "'white', 'black', 'w', or 'b'"))
 
     @property
+    def not_to_move(self):
+        return "white" if (self._to_move == BLACK) else "black"
+
+    @property
     def current_amazons(self):
         """
         Get the Squares list representing the amazons whose turn it is to move.
@@ -180,43 +182,44 @@ class Board(object):
         return (self.white_amazons if self.to_move == "black"
                 else self.black_amazons)
 
-    @memoized
     def get_board(self):
         """
-        Returns a two-dimensional list such that get_board()[column][row] is
-        the board index constant (Board.EMPTY, Board.WHITE, Board.BLACK, or
-        Board.ARROW) at the given row and column.
+        Memoizes and/or returns a two-dimensional list such that
+        get_board()[column][row] is the board index constant (Board.EMPTY,
+        Board.WHITE, Board.BLACK, or Board.ARROW) at the given row and column.
         """
-        # Initialize empty board.
-        columns = [[EMPTY for r in range(self.height)]
-                   for c in range(self.width)]
+        if not hasattr(self, '_columns'):
+            # Initialize empty board.
+            columns = [[EMPTY for r in range(self.height)]
+                       for c in range(self.width)]
 
-        # Place amazons and arrows, raising an error if there is any collision.
-        for amz in self.white_amazons:
-            occupant = columns[amz[0]][amz[1]]
-            if (occupant != EMPTY):
-                raise ValueError(("Board position %s can't be occupied by "
-                                  "both %s and %s") % (str(amz),
-                                  SQUARE_OCCUPANT_NAMES[occupant],
-                                  SQUARE_OCCUPANT_NAMES[WHITE]))
-            columns[amz[0]][amz[1]] = WHITE
-        for amz in self.black_amazons:
-            occupant = columns[amz[0]][amz[1]]
-            if (occupant != EMPTY):
-                raise ValueError(("Board position %s can't be occupied by "
-                                  "both %s and %s") % (str(amz),
-                                  SQUARE_OCCUPANT_NAMES[occupant],
-                                  SQUARE_OCCUPANT_NAMES[BLACK]))
-            columns[amz[0]][amz[1]] = BLACK
-        for arr in self.arrows:
-            occupant = columns[arr[0]][arr[1]]
-            if (occupant != EMPTY):
-                raise ValueError(("Board position %s can't be occupied by "
-                                  "both %s and %s") % (str(arr),
-                                  SQUARE_OCCUPANT_NAMES[occupant],
-                                  SQUARE_OCCUPANT_NAMES[ARROW]))
-            columns[arr[0]][arr[1]] = ARROW
-        return columns
+            # Place amazons and arrows, raising an error if there is any collision.
+            for amz in self.white_amazons:
+                occupant = columns[amz[0]][amz[1]]
+                if (occupant != EMPTY):
+                    raise ValueError(("Board position %s can't be occupied by "
+                                      "both %s and %s") % (str(amz),
+                                      SQUARE_OCCUPANT_NAMES[occupant],
+                                      SQUARE_OCCUPANT_NAMES[WHITE]))
+                columns[amz[0]][amz[1]] = WHITE
+            for amz in self.black_amazons:
+                occupant = columns[amz[0]][amz[1]]
+                if (occupant != EMPTY):
+                    raise ValueError(("Board position %s can't be occupied by "
+                                      "both %s and %s") % (str(amz),
+                                      SQUARE_OCCUPANT_NAMES[occupant],
+                                      SQUARE_OCCUPANT_NAMES[BLACK]))
+                columns[amz[0]][amz[1]] = BLACK
+            for arr in self.arrows:
+                occupant = columns[arr[0]][arr[1]]
+                if (occupant != EMPTY):
+                    raise ValueError(("Board position %s can't be occupied by "
+                                      "both %s and %s") % (str(arr),
+                                      SQUARE_OCCUPANT_NAMES[occupant],
+                                      SQUARE_OCCUPANT_NAMES[ARROW]))
+                columns[arr[0]][arr[1]] = ARROW
+            self._columns = columns
+        return self._columns
 
     def get_valid_moves(self):
         """
@@ -266,7 +269,7 @@ class Board(object):
 
         return ''.join(str_list)
 
-    def is_path_clear(self, start, end, ignore = None):
+    def is_path_clear(self, start, end, ignore=None):
         """
         Returns True if there is a straight line path along one of the eight
         cardinal directions from start to end squares, and if it is not blocked
@@ -367,6 +370,71 @@ class Board(object):
         is raised.
         """
         return Board(prev_board=self, move=move)
+
+    def clear_memos(self):
+        """Clears memoized return values so they can be recalculated."""
+        if hasattr(self, '_valid_opponent_moves'):
+            # del self._valid_opponent_moves[:]
+            del self._valid_opponent_moves
+        if hasattr(self, '_valid_moves'):
+            # del self._valid_moves[:]
+            del self._valid_moves
+        if hasattr(self, '_columns'):
+            # for c in self._columns:
+            #     del c[:]
+            # del self._columns[:]
+            del self._columns
+
+    def move_in_place(self, move):
+        """
+        Makes the specified move on this board object, without creating a new
+        board.  If the specified move is not legal for this board, an
+        InvalidMoveError is raised.
+        """
+        self.check_is_move_valid(move);
+
+        self.clear_memos()
+
+        # Move the amazon.
+        start = move[0]
+        end = move[1]
+        arrow = move[2]
+
+        move_us = (self.white_amazons if self.to_move == 'white'
+                   else self.black_amazons)
+
+        move_us.remove(start)
+        move_us.append(end)
+
+        # Shoot the arrow.
+        self.arrows.append(arrow)
+
+        # Flip whose turn it is.
+        self._to_move = WHITE if self.to_move == 'black' else BLACK
+
+    def undo_move_in_place(self, move):
+        """
+        Undoes the specified move on this board object, without creating a new
+        board.
+        """
+        self.clear_memos()
+
+        # Un-move the amazon.
+        start = move[0]
+        end = move[1]
+        arrow = move[2]
+
+        move_us = (self.white_amazons if self.to_move == 'black'
+                   else self.black_amazons)
+
+        move_us.remove(end)
+        move_us.append(start)
+
+        # Un-shoot the arrow.
+        self.arrows.remove(arrow)
+
+        # Flip whose turn it is.
+        self._to_move = WHITE if self.to_move == 'black' else BLACK
 
     def get_inverse(self):
         """

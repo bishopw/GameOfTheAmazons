@@ -10,12 +10,25 @@ class Squares(object):
     represented as a list of Square objects.
     """
 
+    def remove(self, sq):
+        self.squares.remove(sq)
+        if self.sort:
+            self.squares.sort(key=lambda sq: ((sq[1] * self.row_width) + sq[0]))
+
+    def append(self, sq):
+        self.squares.append(sq)
+        if self.sort:
+            self.squares.sort(key=lambda sq: ((sq[1] * self.row_width) + sq[0]))
+
+    def clear(self, sq):
+        del self.squares[:]
+
     def __init__(self, *args, **kwargs):
         self.squares = []
         self.row_width = 1 # track the widest row we've seen for ordering
 
         # sort the squares unless instructed otherwise
-        sort = kwargs.get('sort', True)
+        self.sort = kwargs.get('sort', True)
 
         if (len(args) == 1):
             if (type(args[0]) == str):
@@ -56,7 +69,7 @@ class Squares(object):
         # else there were no args: leave this as an empty squares list
 
         # sort the squares
-        if sort:
+        if self.sort:
             self.squares.sort(key=lambda sq: ((sq[1] * self.row_width) + sq[0]))
 
     def __str__(self):

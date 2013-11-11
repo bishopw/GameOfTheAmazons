@@ -235,10 +235,6 @@ class PygameRunner(object):
                 if m != None:
                     self.game.move(m)
                     self.start_current_move()
-                    if self.game.is_over:
-                        print 'Board:'
-                        print str(self.game.board)
-                        print 'Valid moves: ' + str(self.game.board.get_valid_moves())
                     self.sounds['bounce'].play()
 
             self.render()
@@ -354,7 +350,11 @@ class PygameRunner(object):
         elif new_phase == self.PHASE_SHOOT_ARROW:
             self.msg = board.to_move.capitalize() + ', shoot an arrow.'
         elif new_phase == self.PHASE_GAME_OVER:
-            self.msg = "Game Over: %s wins!" % self.game.winner.capitalize()
+            if self.game.ended_with_resign:
+                self.msg = ("%s Resigns: %s wins!" % 
+                    (board.to_move.capitalize(), board.not_to_move.capitalize()))
+            else:
+                self.msg = "Game Over: %s wins!" % self.game.winner.capitalize()
         else:
             self.msg = ""
         self.game_gui.do_layout(new_phase)
@@ -813,14 +813,24 @@ class PygameRunner(object):
             kwargs['height'] = 160
             gui.Container.__init__(self, **kwargs)
             runner = kwargs['runner']
+            self.runner = runner
 
             self.table = gui.Table()
             self.add(self.table, 0, 0)
 
             self.height = 0
 
-            self.undo_button = gui.Button('Undo')
-            self.undo_button.is_visible = False
+            class UndoButton(gui.Button):
+                def __init__(self, **kwargs):
+                    kwargs['value']='Undo'
+                    gui.Button.__init__(self, **kwargs)
+                    self.is_visible = False
+                    self.connect(gui.CLICK,self.on_click,None)
+                def on_click(self, *args):
+                    runner.game.undo(how_many=2)
+                    runner.start_current_move()
+                    runner.sounds['bounce'].play()
+            self.undo_button = UndoButton()
 
             rules_d = PygameRunner.RulesDialog()
             class RulesButton(gui.Button):
@@ -927,6 +937,8 @@ class PygameRunner(object):
             elif (phase in (PR.PHASE_PICK_AMAZON, PR.PHASE_PLACE_AMAZON,
                             PR.PHASE_SHOOT_ARROW)):
                 self.add_button(t, self.resign_button)
+                if self.runner.game.last_move != None:
+                    self.add_button(t, self.undo_button)
                 self.add_button(t, self.rules_button)
                 self.add_button(t, self.options_button)
                 self.add_button(t, self.title_menu_button)
@@ -1268,7 +1280,7 @@ class PygameRunner(object):
             l = gui.List(500, 260)
 
             rules = ('The Game of the Amazons is played on a 10x10 square board.',
-                'Two players, Black and White, take turns moving one of four.',
+                'Two players, Black and White, take turns moving one of four',
                 'amazons of their color, initially placed at a4, d1, g1, and j4',
                 'for White, and a7, d10, g10, and j7 for Black.  The amazons',
                 'move in one of the eight directions as many squares as desired',
