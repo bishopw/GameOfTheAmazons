@@ -165,7 +165,7 @@ class PygameRunner(object):
 
         self.gui_cont = gui.Container(align=-1,valign=-1)
         self.gui_cont.add(self.title_gui,
-                          (self.screen_w / 2) - 160,
+                          (self.screen_w / 2) - 80,
                           (.8 * self.screen_h))
 
         gui_app.init(self.gui_cont)
@@ -745,30 +745,30 @@ class PygameRunner(object):
                     self.connect(gui.CLICK, runner.on_new_game)
             e = NewGameButton()
             self.td(e)
-            self.tr()
-            class HostRemoteButton(gui.Button):
-                def __init__(self, **kwargs):
-                    kwargs['value'] = 'New Game - Wait for Remote Player'
-                    gui.Button.__init__(self, **kwargs)
-                    self.connect(gui.CLICK, self.on_click, None)
-                def on_click(self, *args):
-                    host_d = PygameRunner.HostRemoteDialog(runner)
-                    host_d.open()
-            e = HostRemoteButton()
+            # self.tr()
+            # class HostRemoteButton(gui.Button):
+            #     def __init__(self, **kwargs):
+            #         kwargs['value'] = 'New Game - Wait for Remote Player'
+            #         gui.Button.__init__(self, **kwargs)
+            #         self.connect(gui.CLICK, self.on_click, None)
+            #     def on_click(self, *args):
+            #         host_d = PygameRunner.HostRemoteDialog(runner)
+            #         host_d.open()
+            # e = HostRemoteButton()
           
-            self.td(e)
-            self.tr()
-            class ConnectRemoteButton(gui.Button):
-                def __init__(self, **kwargs):
-                    kwargs['value'] = "New Game - Connect to Remote Player"
-                    gui.Button.__init__(self, **kwargs)
-                    self.connect(gui.CLICK, self.on_click, None)
-                def on_click(self, *args):
-                    connect_d = PygameRunner.ConnectToRemoteDialog(runner)
-                    connect_d.open()
+            # self.td(e)
+            # self.tr()
+            # class ConnectRemoteButton(gui.Button):
+            #     def __init__(self, **kwargs):
+            #         kwargs['value'] = "New Game - Connect to Remote Player"
+            #         gui.Button.__init__(self, **kwargs)
+            #         self.connect(gui.CLICK, self.on_click, None)
+            #     def on_click(self, *args):
+            #         connect_d = PygameRunner.ConnectToRemoteDialog(runner)
+            #         connect_d.open()
                         
-            e = ConnectRemoteButton()
-            self.td(e)
+            # e = ConnectRemoteButton()
+            # self.td(e)
             self.tr()
             rules_d = PygameRunner.RulesDialog()
             class RulesButton(gui.Button):
@@ -958,7 +958,7 @@ class PygameRunner(object):
             f = gui.Form()
             s = kwargs['settings']
 
-            c = gui.Container(width=340, height=550)
+            c = gui.Container(width=340, height=450)
             c.add(gui.Label('White Player'), 0, 0)
             w_is_human = s['w_player'] == 'human'
             w_player_group = gui.Group(name='w_player_group',
@@ -1085,29 +1085,29 @@ class PygameRunner(object):
             b_byoyomi_seconds_label.disabled = not b_use_byoyomi
             c.add(b_byoyomi_seconds_label, 215, 370)
 
-            c.add(gui.Label('Board'), 0, 400)
+            # c.add(gui.Label('Board'), 0, 400)
             territory_marking = s['territory_marking']
             territory_group = gui.Group(name='territory_group',
                                         value=territory_marking)
             no_territory_button = gui.Radio(territory_group,
                                             TERRITORY_MARK_NONE)
-            c.add(no_territory_button, 20, 420)
-            c.add(gui.Label('No Territory Markings'), 40, 420)
+            # c.add(no_territory_button, 20, 420)
+            # c.add(gui.Label('No Territory Markings'), 40, 420)
             secured_territory_button = gui.Radio(territory_group,
                                                  TERRITORY_MARK_SECURED)
-            c.add(secured_territory_button, 20, 440)
-            c.add(gui.Label('Show Secured Territory'), 40, 440)
+            # c.add(secured_territory_button, 20, 440)
+            # c.add(gui.Label('Show Secured Territory'), 40, 440)
             estimated_territory_button = gui.Radio(territory_group,
                                                    TERRITORY_MARK_ESTIMATED)
-            c.add(estimated_territory_button, 20, 460)
-            c.add(gui.Label('Show Estimated Territory'), 40, 460)
+            # c.add(estimated_territory_button, 20, 460)
+            # c.add(gui.Label('Show Estimated Territory'), 40, 460)
 
             show_ai_details_switch = gui.Switch(value=s['show_ai_details'],
                                                 name='show_ai_details')
-            c.add(show_ai_details_switch, 0, 490)
+            # c.add(show_ai_details_switch, 0, 490)
             show_ai_details_label = gui.Label(' Show AI Details')
             show_ai_details_label.disabled = not s['show_ai_details']
-            c.add(show_ai_details_label, 20, 490)
+            # c.add(show_ai_details_label, 20, 490)
 
             cancel_button = gui.Button('Cancel', width=70)
             c.add(cancel_button, (c.rect.w / 2) - 90, 525)
@@ -1229,8 +1229,8 @@ class PygameRunner(object):
                 s['b_byoyomi_periods'] = int(f['b_byoyomi_periods'].value)
                 s['b_byoyomi_seconds'] = int(f['b_byoyomi_seconds'].value)
 
-                s['territory_marking'] = f['territory_group'].value
-                s['show_ai_details'] = f['show_ai_details'].value
+                # s['territory_marking'] = f['territory_group'].value
+                # s['show_ai_details'] = f['show_ai_details'].value
 
                 dialog.close()
 
