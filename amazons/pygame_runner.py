@@ -211,7 +211,7 @@ class PygameRunner(object):
                     self.world_y = 0
                     self.set_phase(self.PHASE_TITLE)
                     self.gui_cont.add(self.title_gui,
-                          (self.screen_w / 2) - 160,
+                          (self.screen_w / 2) - 80,
                           (.8 * self.screen_h))
 
             elif self.phase in (self.PHASE_PICK_AMAZON, self.PHASE_PLACE_AMAZON,
